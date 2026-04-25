@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>🍅 番茄钟统计</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0d1117;
+      color: #c9d1d9;
+      padding: 40px 20px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    h1 {
+      font-size: 24px;
+      margin-bottom: 8px;
+      color: #e94560;
+    }
+    .subtitle {
+      color: #8b949e;
+      font-size: 14px;
+      margin-bottom: 32px;
+    }
+
+    /* 汇总卡片 */
+    .summary-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+      margin-bottom: 40px;
+    }
+    .card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      padding: 20px;
+      text-align: center;
+    }
+    .card-value {
+      font-size: 32px;
+      font-weight: bold;
+      color: #e94560;
+    }
+    .card-label {
+      font-size: 13px;
+      color: #8b949e;
+      margin-top: 4px;
+    }
+
+    /* GitHub Contribution 图 */
+    .section {
+      margin-bottom: 40px;
+    }
+    .section-title {
+      font-size: 16px;
+      margin-bottom: 16px;
+      color: #c9d1d9;
+    }
+
+    .contribution-graph {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      padding: 20px;
+      overflow-x: auto;
+    }
+
+    .graph-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .graph-nav button {
+      background: #21262d;
+      border: 1px solid #30363d;
+      color: #c9d1d9;
+      padding: 4px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    .graph-nav button:hover {
+      background: #30363d;
+    }
+    .graph-nav button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .graph-body {
+      display: flex;
+      gap: 3px;
+    }
+    .week-col {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .day-cell {
+      width: 12px;
+      height: 12px;
+      border-radius: 2px;
+      background: #161b22;
+      border: 1px solid #21262d;
+      cursor: pointer;
+      position: relative;
+    }
+    .day-cell:hover::after {
+      content: attr(data-tip);
+      position: absolute;
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #000;
+      color: #fff;
+      font-size: 11px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      white-space: nowrap;
+      z-index: 10;
+      margin-bottom: 4px;
+    }
+
+    /* 颜色等级 */
+    .level-0 { background: #161b22; border-color: #21262d; }
+    .level-1 { background: #0e4429; border-color: #0e4429; }
+    .level-2 { background: #006d32; border-color: #006d32; }
+    .level-3 { background: #26a641; border-color: #26a641; }
+    .level-4 { background: #39d353; border-color: #39d353; }
+
+    .graph-legend {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 4px;
+      margin-top: 12px;
+      font-size: 11px;
+      color: #8b949e;
+    }
+    .legend-cell {
+      width: 12px;
+      height: 12px;
+      border-radius: 2px;
+    }
+
+    /* 月度柱状图 */
+    .monthly-chart {
+      display: flex;
+      align-items: flex-end;
+      gap: 8px;
+      height: 150px;
+      padding: 20px 0;
+    }
+    .month-bar-wrapper {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+    .month-bar {
+      width: 100%;
+      background: #e94560;
+      border-radius: 4px 4px 0 0;
+      min-height: 2px;
+      transition: height 0.3s ease;
+      position: relative;
+    }
+    .month-bar:hover::after {
+      content: attr(data-tip);
+      position: absolute;
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #000;
+      color: #fff;
+      font-size: 11px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      white-space: nowrap;
+      z-index: 10;
+      margin-bottom: 4px;
+    }
+    .month-label {
+      font-size: 11px;
+      color: #8b949e;
+    }
+    .month-stats {
+      font-size: 10px;
+      color: #8b949e;
+      text-align: center;
+      line-height: 1.4;
+    }
+    .month-stats .count {
+      color: #e94560;
+      font-weight: bold;
+    }
+
+    /* 今日详情 */
+    .today-timeline {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .today-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 12px;
+      background: #0d1117;
+      border-radius: 8px;
+      font-size: 13px;
+    }
+    .today-item .time {
+      color: #8b949e;
+      font-size: 12px;
+      min-width: 60px;
+    }
+    .today-item .duration {
+      color: #e94560;
+      font-weight: bold;
+    }
+    .today-summary {
+      display: flex;
+      gap: 24px;
+      padding: 16px;
+      background: #0d1117;
+      border-radius: 8px;
+      margin-bottom: 12px;
+    }
+    .today-summary-item {
+      text-align: center;
+    }
+    .today-summary-item .value {
+      font-size: 24px;
+      font-weight: bold;
+      color: #e94560;
+    }
+    .today-summary-item .label {
+      font-size: 12px;
+      color: #8b949e;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #8b949e;
+    }
+    .empty-state-icon {
+      font-size: 48px;
+      margin-bottom: 12px;
+    }
+
+    .back-link {
+      display: inline-block;
+      margin-bottom: 20px;
+      color: #4ecdc4;
+      text-decoration: none;
+      font-size: 13px;
+    }
+    .back-link:hover { text-decoration: underline; }
+
+    /* 数据操作 */
+    .data-actions {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 32px;
+    }
+    .data-actions button {
+      background: #21262d;
+      border: 1px solid #30363d;
+      color: #c9d1d9;
+      padding: 8px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: background 0.2s;
+    }
+    .data-actions button:hover {
+      background: #30363d;
+    }
+    .data-actions input[type="file"] {
+      display: none;
+    }
+    .import-label {
+      background: #21262d;
+      border: 1px solid #30363d;
+      color: #c9d1d9;
+      padding: 8px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: background 0.2s;
+      display: inline-block;
+    }
+    .import-label:hover {
+      background: #30363d;
+    }
+  </style>
+</head>
+<body>
+  <a class="back-link" id="back-link">← 返回番茄钟</a>
+  <h1>🍅 番茄钟统计</h1>
+  <p class="subtitle">追踪你的专注时光</p>
+
+  <div class="data-actions">
+    <button id="btn-export">📥 导出数据</button>
+    <label class="import-label" for="file-import">📤 导入数据</label>
+    <input type="file" id="file-import" accept=".json">
+  </div>
+
+  <div class="summary-cards" id="summary-cards">
+    <div class="card">
+      <div class="card-value" id="total-sessions">0</div>
+      <div class="card-label">总番茄数</div>
+    </div>
+    <div class="card">
+      <div class="card-value" id="total-hours">0</div>
+      <div class="card-label">总小时</div>
+    </div>
+    <div class="card">
+      <div class="card-value" id="today-sessions">0</div>
+      <div class="card-label">今日番茄</div>
+    </div>
+    <div class="card">
+      <div class="card-value" id="streak-days">0</div>
+      <div class="card-label">连续天数</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="graph-header">
+      <span class="section-title">📅 年度贡献图</span>
+      <div class="graph-nav">
+        <button id="prev-year">←</button>
+        <span id="year-label" style="font-size:13px;color:#8b949e;">2026</span>
+        <button id="next-year">→</button>
+      </div>
+    </div>
+    <div class="contribution-graph">
+      <div class="graph-body" id="contribution-body"></div>
+      <div class="graph-legend">
+        <span>少</span>
+        <div class="legend-cell level-0"></div>
+        <div class="legend-cell level-1"></div>
+        <div class="legend-cell level-2"></div>
+        <div class="legend-cell level-3"></div>
+        <div class="legend-cell level-4"></div>
+        <span>多</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">📊 月度统计</div>
+    <div class="contribution-graph">
+      <div class="monthly-chart" id="monthly-chart"></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">📋 今日详情</div>
+    <div class="contribution-graph">
+      <div id="today-detail" style="padding: 20px 0;"></div>
+    </div>
+  </div>
+
+  <script src="stats.js"></script>
+</body>
+</html>
