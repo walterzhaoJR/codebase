@@ -25,6 +25,7 @@ function loadState() {
           onTimerComplete();
         } else {
           startAlarm(remaining);
+          startBadgeUpdate(); // 恢复时启动 badge 更新
         }
       }
     }
@@ -37,10 +38,48 @@ function saveState() {
 
 function startAlarm(seconds) {
   chrome.alarms.create('pomodoro', { delayInMinutes: seconds / 60 });
+  startBadgeUpdate();
 }
 
 function clearAlarm() {
   chrome.alarms.clear('pomodoro');
+  stopBadgeUpdate();
+}
+
+// Badge 倒计时更新
+let badgeInterval = null;
+
+function startBadgeUpdate() {
+  stopBadgeUpdate();
+  updateBadge(); // 立即更新一次
+  badgeInterval = setInterval(updateBadge, 1000);
+}
+
+function stopBadgeUpdate() {
+  if (badgeInterval) {
+    clearInterval(badgeInterval);
+    badgeInterval = null;
+  }
+  chrome.action.setBadgeText({ text: '' });
+  chrome.action.setBadgeBackgroundColor({ color: '#e94560' });
+}
+
+function updateBadge() {
+  if (!timerState.isRunning || !timerState.endTime) {
+    stopBadgeUpdate();
+    return;
+  }
+
+  const remaining = Math.max(0, Math.floor((timerState.endTime - Date.now()) / 1000));
+  if (remaining <= 0) {
+    stopBadgeUpdate();
+    return;
+  }
+
+  const minutes = Math.floor(remaining / 60);
+  const text = minutes > 99 ? '99+' : String(minutes);
+  chrome.action.setBadgeText({ text });
+  chrome.action.setBadgeBackgroundColor({ color: '#e94560' });
 }
 
 // 数据迁移：旧格式（无 sessions）→ 新格式
@@ -90,6 +129,7 @@ function migrateStats() {
 function onTimerComplete() {
   timerState.isRunning = false;
   timerState.endTime = null;
+  stopBadgeUpdate();
   saveState();
 
   // 通知
@@ -183,6 +223,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       timerState.isRunning = false;
       timerState.endTime = null;
       clearAlarm();
+      stopBadgeUpdate();
       saveState();
     }
     sendResponse({ success: true, timerState });
@@ -207,6 +248,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     timerState.endTime = null;
     timerState.pausedRemaining = null;
     clearAlarm();
+    stopBadgeUpdate();
     saveState();
     sendResponse({ success: true, timerState });
     return true;
