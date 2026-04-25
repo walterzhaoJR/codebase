@@ -149,14 +149,14 @@ function onTimerComplete() {
 }
 
 function notifyAllTabs() {
-  chrome.tabs.query({}, (tabs) => {
-    tabs.forEach((tab) => {
-      if (tab.id && tab.url && !tab.url.startsWith('chrome://')) {
-        chrome.tabs.sendMessage(tab.id, { action: 'timerComplete' }).catch(() => {
-          // 某些页面无法注入 content script，静默忽略
-        });
-      }
-    });
+  // 只在当前活跃标签页提示
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    const tab = tabs[0];
+    if (tab && tab.id && tab.url && !tab.url.startsWith('chrome://')) {
+      chrome.tabs.sendMessage(tab.id, { action: 'timerComplete' }).catch(() => {
+        // 某些页面无法注入 content script，静默忽略
+      });
+    }
   });
 }
 
