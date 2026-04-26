@@ -125,8 +125,14 @@ function migrateStats() {
   });
 }
 
+// 防止重复触发
+let completed = false;
+
 // 计时结束
 function onTimerComplete() {
+  if (completed) return;
+  completed = true;
+
   timerState.isRunning = false;
   timerState.endTime = null;
   stopBadgeUpdate();
@@ -206,6 +212,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 // 接收来自 popup / stats 的消息
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'start') {
+    completed = false;
     const duration = request.duration || 25 * 60;
     timerState.duration = duration;
     timerState.isRunning = true;
