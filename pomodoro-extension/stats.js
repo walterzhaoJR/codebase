@@ -52,11 +52,13 @@ function renderSummary() {
   document.getElementById('total-sessions').textContent = totalSessions;
   document.getElementById('total-hours').textContent = (totalMinutes / 60).toFixed(1);
   document.getElementById('today-sessions').textContent = todaySessions;
-  document.getElementById('streak-days').textContent = calculateStreak(daily);
+  document.getElementById('streak-days').textContent = calculateStreak(sessions);
 }
 
-function calculateStreak(daily) {
-  const dates = Object.keys(daily).filter(d => daily[d] > 0).sort();
+function calculateStreak(sessions) {
+  // 用 sessions 数组计算连续天数，更准确
+  const dateSet = new Set(sessions.map(s => s.date));
+  const dates = Array.from(dateSet).sort();
   if (dates.length === 0) return 0;
 
   let streak = 0;
@@ -67,7 +69,7 @@ function calculateStreak(daily) {
     const check = new Date(today);
     check.setDate(check.getDate() - i);
     const key = check.toISOString().split('T')[0];
-    if (daily[key] && daily[key] > 0) {
+    if (dateSet.has(key)) {
       streak++;
     } else if (i > 0) {
       break;
