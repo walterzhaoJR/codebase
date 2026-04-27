@@ -37,10 +37,17 @@ function renderAll() {
 }
 
 // ------------------ 汇总卡片 ------------------
+function formatLocalDate(d) {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function renderSummary() {
   const sessions = statsData.sessions || [];
   const daily = statsData.daily || {};
-  const today = new Date().toISOString().split('T')[0];
+  const today = formatLocalDate(new Date());
 
   const totalSessions = sessions.length;
 
@@ -68,7 +75,7 @@ function calculateStreak(sessions) {
   for (let i = 0; i < 365; i++) {
     const check = new Date(today);
     check.setDate(check.getDate() - i);
-    const key = check.toISOString().split('T')[0];
+    const key = formatLocalDate(check);
     if (dateSet.has(key)) {
       streak++;
     } else if (i > 0) {
@@ -114,7 +121,7 @@ function renderContributionGraph() {
 
     for (let day = 0; day < 7; day++) {
       const cellDate = new Date(current);
-      const dateKey = cellDate.toISOString().split('T')[0];
+      const dateKey = formatLocalDate(cellDate);
       const count = dayCounts[dateKey] || 0;
       const minutes = Math.floor((statsData.daily[dateKey] || 0) / 60);
 
@@ -210,7 +217,7 @@ function renderTodayDetail() {
   const container = document.getElementById('today-detail');
   container.innerHTML = '';
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = formatLocalDate(new Date());
   const sessions = (statsData.sessions || []).filter(s => s.date === today);
 
   if (sessions.length === 0) {
