@@ -33,6 +33,7 @@ function renderAll() {
   renderSummary();
   renderContributionGraph();
   renderMonthlyChart();
+  renderWeekdayChart();
   renderTodayDetail();
 }
 
@@ -143,7 +144,8 @@ function renderContributionGraph() {
       const month = cellDate.getMonth() + 1;
       const dayNum = cellDate.getDate();
       const weekDays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
-      cell.setAttribute('data-tip', `${month}月${dayNum}日 ${weekDays[day]} · ${count} 个番茄 · ${minutes} 分钟`);
+      const hours = (minutes / 60).toFixed(1);
+      cell.setAttribute('data-tip', `${month}月${dayNum}日 ${weekDays[day]} · ${count} 个番茄 · ${hours} 小时`);
 
       if (cellDate.getFullYear() !== currentYear) {
         cell.style.opacity = '0.2';
@@ -155,6 +157,55 @@ function renderContributionGraph() {
 
     container.appendChild(weekCol);
   }
+}
+
+// ------------------ 周分布柱状图 ------------------
+function renderWeekdayChart() {
+  const container = document.getElementById('weekday-chart');
+  container.innerHTML = '';
+
+  const sessions = statsData.sessions || [];
+  const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+
+  // 统计每周各天：番茄数 + 总时长
+  const weekdayData = weekdays.map(() => ({ count: 0, minutes: 0 }));
+  sessions.forEach(s => {
+    if (s.date && s.date.startsWith(String(currentYear))) {
+      const d = new Date(s.date + 'T00:00:00');
+      const dayIndex = d.getDay(); // 0=周日, 1=周一...
+      weekdayData[dayIndex].count += 1;
+      weekdayData[dayIndex].minutes += Math.floor(s.duration / 60);
+    }
+  });
+
+  const maxCount = Math.max(...weekdayData.map(d => d.count), 1);
+  const maxMinutes = Math.max(...weekdayData.map(d => d.minutes), 1);
+
+  weekdayData.forEach((data, i) => {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'weekday-bar-wrapper';
+
+    const bar = document.createElement('div');
+    bar.className = 'weekday-bar';
+    // 以最高分钟数为基准，统一按时长比例计算高度，留 20px 顶部空间
+    const height = Math.max(2, Math.floor((data.minutes / maxMinutes) * 110));
+    bar.style.height = height + 'px';
+    const weekdayHours = (data.minutes / 60).toFixed(1);
+    bar.setAttribute('data-tip', `${weekdays[i]}: ${data.count} 个番茄 · ${weekdayHours} 小时`);
+
+    const lbl = document.createElement('div');
+    lbl.className = 'weekday-label';
+    lbl.textContent = weekdays[i];
+
+    const stats = document.createElement('div');
+    stats.className = 'weekday-stats';
+    stats.innerHTML = `<span class="count">${data.count}</span> 🍅<br>${weekdayHours} 小时`;
+
+    wrapper.appendChild(bar);
+    wrapper.appendChild(lbl);
+    wrapper.appendChild(stats);
+    container.appendChild(wrapper);
+  });
 }
 
 // ------------------ 月度柱状图（含个数+时长） ------------------
@@ -186,6 +237,7 @@ function renderMonthlyChart() {
   }
 
   const maxCount = Math.max(...months.map(m => m.count), 1);
+  const maxMinutes = Math.max(...months.map(m => m.minutes), 1);
 
   months.forEach(({ label, count, minutes }) => {
     const wrapper = document.createElement('div');
@@ -193,9 +245,11 @@ function renderMonthlyChart() {
 
     const bar = document.createElement('div');
     bar.className = 'month-bar';
-    const height = Math.max(2, Math.floor((count / maxCount) * 130));
+    // 以最高分钟数为基准，统一按时长比例计算高度，留 20px 顶部空间
+    const height = Math.max(2, Math.floor((minutes / maxMinutes) * 110));
     bar.style.height = height + 'px';
-    bar.setAttribute('data-tip', `${label}: ${count} 个番茄 · ${minutes} 分钟`);
+    const monthHours = (minutes / 60).toFixed(1);
+    bar.setAttribute('data-tip', `${label}: ${count} 个番茄 · ${monthHours} 小时`);
 
     const lbl = document.createElement('div');
     lbl.className = 'month-label';
@@ -203,7 +257,7 @@ function renderMonthlyChart() {
 
     const stats = document.createElement('div');
     stats.className = 'month-stats';
-    stats.innerHTML = `<span class="count">${count}</span> 🍅<br>${minutes} 分钟`;
+    stats.innerHTML = `<span class="count">${count}</span> 🍅<br>${monthHours} 小时`;
 
     wrapper.appendChild(bar);
     wrapper.appendChild(lbl);
@@ -241,11 +295,7 @@ function renderTodayDetail() {
       <div class="label">完成番茄</div>
     </div>
     <div class="today-summary-item">
-      <div class="value">${totalMinutes}</div>
-      <div class="label">专注分钟</div>
-    </div>
-    <div class="today-summary-item">
-      <div class="value">${Math.floor(totalMinutes / 60 * 10) / 10}</div>
+      <div class="value">${(totalMinutes / 60).toFixed(1)}</div>
       <div class="label">专注小时</div>
     </div>
   `;
@@ -267,7 +317,7 @@ function renderTodayDetail() {
     item.innerHTML = `
       <span class="time">${time}</span>
       <span>第 ${i + 1} 个番茄</span>
-      <span class="duration">${minutes} 分钟</span>
+      <span class="duration">${(minutes / 60).toFixed(1)} 小时</span>
     `;
     timeline.appendChild(item);
   });

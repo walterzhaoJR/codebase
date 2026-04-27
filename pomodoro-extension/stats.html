@@ -63,7 +63,7 @@
       background: #161b22;
       border: 1px solid #30363d;
       border-radius: 12px;
-      padding: 20px;
+      padding: 40px 20px 20px;
       overflow-x: auto;
     }
 
@@ -150,16 +150,17 @@
     .monthly-chart {
       display: flex;
       align-items: flex-end;
+      justify-content: space-around;
       gap: 8px;
-      height: 150px;
-      padding: 20px 0;
+      height: 180px;
+      padding: 40px 0 20px;
     }
     .month-bar-wrapper {
-      flex: 1;
       display: flex;
       flex-direction: column;
       align-items: center;
       gap: 4px;
+      min-width: 50px;
     }
     .month-bar {
       width: 100%;
@@ -196,6 +197,60 @@
     }
     .month-stats .count {
       color: #e94560;
+      font-weight: bold;
+    }
+
+    /* 周分布柱状图 */
+    .weekday-chart {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-around;
+      gap: 8px;
+      height: 180px;
+      padding: 40px 0 20px;
+    }
+    .weekday-bar-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      min-width: 60px;
+    }
+    .weekday-bar {
+      width: 100%;
+      background: #4ecdc4;
+      border-radius: 4px 4px 0 0;
+      min-height: 2px;
+      transition: height 0.3s ease;
+      position: relative;
+    }
+    .weekday-bar:hover::after {
+      content: attr(data-tip);
+      position: absolute;
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #000;
+      color: #fff;
+      font-size: 11px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      white-space: nowrap;
+      z-index: 10;
+      margin-bottom: 4px;
+    }
+    .weekday-label {
+      font-size: 11px;
+      color: #8b949e;
+    }
+    .weekday-stats {
+      font-size: 10px;
+      color: #8b949e;
+      text-align: center;
+      line-height: 1.4;
+    }
+    .weekday-stats .count {
+      color: #4ecdc4;
       font-weight: bold;
     }
 
@@ -351,6 +406,13 @@
         <div class="legend-cell level-4"></div>
         <span>多</span>
       </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">📊 周分布统计</div>
+    <div class="contribution-graph">
+      <div class="weekday-chart" id="weekday-chart"></div>
     </div>
   </div>
 
