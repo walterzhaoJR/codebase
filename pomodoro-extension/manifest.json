@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "番茄钟 Pro",
-  "version": "1.4",
+  "version": "1.5",
   "description": "简洁的番茄钟，支持自定义时长和统计",
   "permissions": ["notifications", "storage", "alarms", "activeTab"],
   "host_permissions": ["<all_urls>"],
