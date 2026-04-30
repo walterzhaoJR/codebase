@@ -310,6 +310,53 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
     return true;
   }
+
+  // 手动补签
+  if (request.action === 'manualAdd') {
+    const date = request.date;           // YYYY-MM-DD
+    const duration = request.duration;   // 秒
+
+    if (!date || !duration || duration <= 0) {
+      sendResponse({ success: false, error: 'Invalid date or duration' });
+      return true;
+    }
+
+    const [y, m] = date.split('-');
+    const monthKey = `${y}-${m}`;
+    const yearKey = y;
+
+    chrome.storage.local.get(['stats'], (result) => {
+      const stats = result.stats || {
+        daily: {}, monthly: {}, yearly: {},
+        sessions: []
+      };
+
+      // 累计时间（秒）
+      stats.daily[date] = (stats.daily[date] || 0) + duration;
+      stats.monthly[monthKey] = (stats.monthly[monthKey] || 0) + duration;
+      stats.yearly[yearKey] = (stats.yearly[yearKey] || 0) + duration;
+
+      // 记录 session —— 用当前真实时间
+      if (!stats.sessions) stats.sessions = [];
+      stats.sessions.push({
+        date: date,
+        month: monthKey,
+        year: yearKey,
+        duration: duration,
+        completedAt: Date.now()
+      });
+
+      // 限制记录数量
+      if (stats.sessions.length > 1000) {
+        stats.sessions = stats.sessions.slice(-1000);
+      }
+
+      chrome.storage.local.set({ stats }, () => {
+        sendResponse({ success: true });
+      });
+    });
+    return true;
+  }
 });
 
 // 初始化
