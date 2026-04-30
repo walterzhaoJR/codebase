@@ -360,5 +360,40 @@ document.getElementById('file-import').addEventListener('change', (e) => {
   e.target.value = '';
 });
 
+// ------------------ 手动补签 ------------------
+const manualDate = document.getElementById('manual-date');
+const manualDuration = document.getElementById('manual-duration');
+const btnManualAdd = document.getElementById('btn-manual-add');
+
+// 默认日期设为今天
+manualDate.value = new Date().toISOString().split('T')[0];
+
+btnManualAdd.addEventListener('click', () => {
+  const date = manualDate.value;
+  const duration = parseInt(manualDuration.value) || 25;
+
+  if (!date) {
+    alert('请选择日期');
+    return;
+  }
+  if (duration < 1 || duration > 120) {
+    alert('时长需在 1-120 分钟之间');
+    return;
+  }
+
+  chrome.runtime.sendMessage({
+    action: 'manualAdd',
+    date: date,
+    duration: duration * 60
+  }, (resp) => {
+    if (resp && resp.success) {
+      alert(`✅ 已补签 ${date} · ${duration} 分钟`);
+      loadStats(); // 刷新统计
+    } else {
+      alert('补签失败：' + (resp?.error || '未知错误'));
+    }
+  });
+});
+
 // 初始化
 loadStats();
