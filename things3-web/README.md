@@ -14,8 +14,36 @@ Things 3 风格的网页版任务管理应用。功能与 Electron 版一致，�
 
 ## 🚀 使用方式
 
-1. 用浏览器打开 `index.html` 即可使用。
-2. 建议固定在浏览器标签页或 PWA 方式添加到主屏。
+### 方式一：直接打开
+用浏览器打开 `index.html` 即可使用。
+
+### 方式二：启动本地服务（推荐）
+
+在终端执行：
+
+```bash
+cd /Users/walterzhao/.qclaw/workspace/things3-web
+python3 -m http.server 8123 --bind 127.0.0.1
+```
+
+然后在浏览器打开：
+
+```
+http://127.0.0.1:8123/index.html
+```
+
+### 后台运行
+
+关闭终端后仍然保持服务运行：
+
+```bash
+nohup python3 -m http.server 8123 --bind 127.0.0.1 > /tmp/things3-web.log 2>&1 &
+```
+
+之后浏览器访问 `http://127.0.0.1:8123/index.html` 即可。
+
+### 固定使用
+建议将页面固定在浏览器标签页，或通过 PWA 方式添加到主屏。
 
 ## 🔔 通知权限
 
