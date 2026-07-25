@@ -31,6 +31,10 @@ function loadState() {
     if (raw) {
       const data = JSON.parse(raw);
       state.tasks = (data.tasks || []).map(task => {
+        // 兼容旧版数据：补全 completedAt 字段
+        if (task.completed && !task.completedAt) {
+          task.completedAt = task.notifiedAt || Date.now();
+        }
         // 兼容旧版的“稍后提醒”数据。
         if (!task.nextReminderAt && task.snoozeUntil) {
           task.nextReminderAt = task.snoozeUntil;
@@ -273,12 +277,18 @@ function checkDueReminders() {
   state.tasks.forEach(task => {
     if (task.completed) return;
     if (!task.reminderType || task.reminderType === 'none') return;
-    if (task.notifiedAt) return;
+
+    const snoozeUntil = task.snoozeUntil || 0;
+    if (now < snoozeUntil) return;
 
     const reminderTime = task.nextReminderAt ||
       getReminderDateTime(task.date, task.reminderType, task.reminderTime || '09:00');
     if (reminderTime && reminderTime <= now) {
-      delete task.nextReminderAt;
+      // 只弹一次：弹窗后清空提醒设置，避免过期任务反复触发
+      task.reminderType = 'none';
+      task.reminderTime = null;
+      task.nextReminderAt = null;
+      task.snoozeUntil = null;
       showNotification('Things 3 提醒', task.title);
       showAlert(task);
       task.notifiedAt = now;
@@ -342,8 +352,8 @@ function computeStats() {
   const completionRate = total ? Math.round((completed.length / total) * 100) : 0;
 
   const durations = completed
-    .filter(t => t.createdAt && (t.completedAt || t.notifiedAt))
-    .map(t => (t.completedAt || t.notifiedAt) - t.createdAt);
+    .filter(t => t.createdAt && t.completedAt)
+    .map(t => t.completedAt - t.createdAt);
   const avgDuration = durations.length
     ? durations.reduce((a, b) => a + b, 0) / durations.length
     : null;
@@ -745,7 +755,10 @@ function toggleTask(taskId) {
   const task = state.tasks.find(t => t.id === taskId);
   if (task) {
     task.completed = !task.completed;
-    if (task.completed) task.notifiedAt = Date.now();
+    if (task.completed) task.completedAt = Date.now();
+    else delete task.completedAt;
+    task.notifiedAt = null;
+    task.nextReminderAt = null;
     saveState();
     render();
   }
@@ -758,7 +771,7 @@ function saveTask(formData) {
 
   if (taskId) {
     const idx = state.tasks.findIndex(t => t.id === taskId);
-    if (idx !== -1) state.tasks[idx] = { ...state.tasks[idx], ...formData, notifiedAt: null, nextReminderAt: null };
+    if (idx !== -1) state.tasks[idx] = { ...state.tasks[idx], ...formData, notifiedAt: null, nextReminderAt: null, completedAt: state.tasks[idx].completed ? state.tasks[idx].completedAt : null };
   } else {
     state.tasks.push({
       id: generateId(),
@@ -772,6 +785,7 @@ function saveTask(formData) {
       completed: false,
       someday: formData.someday || false,
       createdAt: Date.now(),
+      completedAt: null,
       notifiedAt: null,
       nextReminderAt: null
     });
@@ -821,6 +835,12 @@ function setupAlertListeners() {
     if (currentAlertTaskId) {
       hideAlert();
       openTaskDetail(currentAlertTaskId);
+    }
+  });
+  document.getElementById('alert-complete').addEventListener('click', () => {
+    if (currentAlertTaskId) {
+      toggleTask(currentAlertTaskId);
+      hideAlert();
     }
   });
   document.getElementById('alert-overlay').addEventListener('click', e => {
