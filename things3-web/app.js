@@ -436,17 +436,6 @@ function computeStats() {
     };
   });
 
-  const weekdayStats = [0, 1, 2, 3, 4, 5, 6].map(day => {
-    const dayCreated = all.filter(t => t.createdAt && new Date(t.createdAt).getDay() === day).length;
-    const dayCompleted = completed.filter(t => t.completedAt && new Date(t.completedAt).getDay() === day).length;
-    return { day, created: dayCreated, completed: dayCompleted };
-  });
-
-  const hourStats = Array.from({ length: 24 }, (_, h) => {
-    const created = all.filter(t => t.createdAt && new Date(t.createdAt).getHours() === h).length;
-    return { hour: h, created };
-  });
-
   const streak = (() => {
     let current = 0;
     for (let i = 0; i < 365; i++) {
@@ -462,12 +451,23 @@ function computeStats() {
     return current;
   })();
 
+  // 未完成任务相关统计
+  const activeTasks = all.filter(t => !t.completed);
+  const activeWithDate = activeTasks.filter(t => !!t.date);
+  const activeNoDate = activeTasks.filter(t => !t.date);
+  const activeToday = activeTasks.filter(t => isToday(t.date)).length;
+  const activeUpcoming = activeTasks.filter(t => isUpcoming(t.date)).length;
+  const activeOverdue = activeTasks.filter(t => t.date && isOverdue(t.date)).length;
+  const activeWithReminder = activeTasks.filter(t => t.reminderType && t.reminderType !== 'none').length;
+
   return {
     total, completed: completed.length, active, completionRate,
     avgDuration, medianDuration, buckets, byProject, byTag,
     todayCreated, todayCompleted, thisWeekCreated, thisWeekCompleted,
     thisMonthCreated, thisMonthCompleted, overdue, noDate, withReminder,
-    dailyTrend, weekdayStats, hourStats, streak
+    dailyTrend, streak,
+    activeWithDate: activeWithDate.length, activeNoDate: activeNoDate.length,
+    activeToday, activeUpcoming, activeOverdue, activeWithReminder
   };
 }
 
@@ -483,7 +483,8 @@ function renderStats() {
     { icon: '📅', cls: 'green', value: stats.todayCreated, label: '今日创建' },
     { icon: '✨', cls: 'blue', value: stats.todayCompleted, label: '今日完成' },
     { icon: '🔥', cls: 'red', value: stats.streak, label: '连续完成天数' },
-    { icon: '⏳', cls: 'orange', value: stats.overdue, label: '已逾期' }
+    { icon: '📌', cls: 'gray', value: stats.active, label: '未完成' },
+    { icon: '⏳', cls: 'orange', value: stats.activeOverdue, label: '已逾期' }
   ];
 
   const cardsHtml = statCards.map(c => `
@@ -541,20 +542,21 @@ function renderStats() {
     `;
   }).join('');
 
-  const weekdayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
-  const maxWeekday = Math.max(1, ...stats.weekdayStats.map(w => w.created + w.completed));
-  const weekdayHtml = stats.weekdayStats.map(w => `
-    <div class="stat-weekday-cell">
-      <div class="stat-weekday-name">${weekdayNames[w.day]}</div>
-      <div class="stat-weekday-value">${w.created + w.completed}</div>
-    </div>
-  `).join('');
+  const activeRows = [
+    { label: '未完成任务', value: stats.active },
+    { label: '有截止日期', value: stats.activeWithDate },
+    { label: '无截止日期', value: stats.activeNoDate },
+    { label: '今日待办', value: stats.activeToday },
+    { label: '近日待办', value: stats.activeUpcoming },
+    { label: '已逾期', value: stats.activeOverdue },
+    { label: '已设提醒', value: stats.activeWithReminder }
+  ].filter(r => r.value > 0);
 
-  const maxHour = Math.max(1, ...stats.hourStats.map(h => h.created));
-  const hourHtml = stats.hourStats.filter((_, i) => i % 2 === 0).map(h => `
-    <div class="stat-hour-cell ${h.created > maxHour * 0.6 ? 'active' : ''}">
-      <div class="stat-hour-label">${String(h.hour).padStart(2, '0')}:00</div>
-      <div class="stat-hour-value">${h.created}</div>
+  const activeHtml = activeRows.map(r => `
+    <div class="stat-bar-row">
+      <span class="stat-bar-label">${r.label}</span>
+      <div class="stat-bar-track"><div class="stat-bar-fill" style="width: ${Math.max(4, (r.value / Math.max(stats.active, 1)) * 100)}%"></div></div>
+      <span class="stat-bar-value">${r.value}</span>
     </div>
   `).join('');
 
@@ -566,15 +568,9 @@ function renderStats() {
       <div class="stat-trend-grid">${trendHtml}</div>
     </div>
 
-    <div class="stat-row">
-      <div class="stat-section">
-        <h3>📊 星期分布</h3>
-        <div class="stat-weekday-grid">${weekdayHtml}</div>
-      </div>
-      <div class="stat-section">
-        <h3>🕒 创建时间偏好</h3>
-        <div class="stat-hour-grid">${hourHtml}</div>
-      </div>
+    <div class="stat-section">
+      <h3>📝 未完成任务分布</h3>
+      ${stats.active ? activeHtml : '<p class="stat-empty">暂无未完成任务</p>'}
     </div>
 
     <div class="stat-section">
