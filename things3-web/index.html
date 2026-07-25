@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Things 3 Web</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo"><span class="logo-icon">✓</span><span class="logo-text">Things</span></div>
+      </div>
+      <nav class="nav-list">
+        <button class="nav-item active" data-view="today"><span class="nav-icon">📅</span><span class="nav-text">今天</span><span class="nav-count" id="today-count">0</span></button>
+        <button class="nav-item" data-view="upcoming"><span class="nav-icon">📆</span><span class="nav-text">近日</span><span class="nav-count" id="upcoming-count">0</span></button>
+        <button class="nav-item" data-view="anytime"><span class="nav-icon">⭐</span><span class="nav-text">随时</span></button>
+        <button class="nav-item" data-view="someday"><span class="nav-icon">🌙</span><span class="nav-text">有一天</span></button>
+      </nav>
+      <div class="nav-divider"></div>
+      <div class="nav-section-header"><span>项目</span><button class="add-btn" id="add-project-btn" title="新建项目">+</button></div>
+      <nav class="nav-list projects-list" id="projects-list"></nav>
+      <div class="nav-divider"></div>
+      <button class="nav-item stats-nav" data-view="stats"><span class="nav-icon">📊</span><span class="nav-text">统计</span></button>
+      <div class="sidebar-footer">
+        <button class="export-btn" id="export-btn">⬇ 导出数据</button>
+        <button class="import-btn" id="import-btn">⬆ 导入数据</button>
+        <input type="file" id="import-file" accept=".json" hidden>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="content-header">
+        <h1 class="view-title" id="view-title">今天</h1>
+        <button class="quick-add-btn" id="quick-add-btn">+ 新建任务</button>
+      </header>
+      <div class="tasks-wrapper">
+        <div class="tasks-container" id="tasks-container"></div>
+        <div class="empty-state" id="empty-state" style="display: none;">
+          <div class="empty-icon">✨</div>
+          <p class="empty-text">暂无任务</p>
+          <p class="empty-hint">点击右上角添加新任务</p>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div class="modal" id="task-modal">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content">
+      <div class="modal-header"><h3 id="modal-title">新建任务</h3><button class="modal-close" id="modal-close">×</button></div>
+      <form id="task-form">
+        <input type="hidden" id="task-id">
+        <div class="form-group"><input type="text" id="task-title" placeholder="任务标题" required autocomplete="off"></div>
+        <div class="form-group"><select id="task-project"><option value="">无项目</option></select></div>
+        <div class="form-group">
+          <label>何时</label>
+          <div class="date-options">
+            <button type="button" class="date-btn" data-date="today">今天</button>
+            <button type="button" class="date-btn" data-date="tomorrow">明天</button>
+            <button type="button" class="date-btn" data-date="week">本周</button>
+            <button type="button" class="date-btn" data-date="later">之后</button>
+          </div>
+          <input type="date" id="task-date" class="date-input">
+        </div>
+        <div class="form-group">
+          <label>提醒时间</label>
+          <div class="reminder-row">
+            <select id="task-reminder-type">
+              <option value="none">不提醒</option><option value="at-time">准时</option><option value="5min">提前5分钟</option><option value="15min">提前15分钟</option><option value="30min">提前30分钟</option><option value="1hour">提前1小时</option><option value="1day">提前1天</option>
+            </select>
+            <input type="time" id="task-reminder-time" class="time-input" value="09:00">
+          </div>
+        </div>
+        <div class="form-group"><label>标签</label><input type="text" id="task-tags" placeholder="用逗号分隔多个标签" autocomplete="off"></div>
+        <div class="form-group"><label>备注</label><textarea id="task-notes" placeholder="添加备注..." rows="3"></textarea></div>
+        <div class="form-actions"><button type="button" class="btn-cancel" id="btn-cancel">取消</button><button type="submit" class="btn-save">保存</button></div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal" id="project-modal">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content modal-small">
+      <div class="modal-header"><h3>新建项目</h3><button class="modal-close" id="project-modal-close">×</button></div>
+      <form id="project-form">
+        <div class="form-group"><input type="text" id="project-name" placeholder="项目名称" required autocomplete="off"></div>
+        <div class="form-group"><label>图标</label><div class="icon-picker" id="icon-picker">
+          <button type="button" class="icon-option selected" data-icon="📁">📁</button><button type="button" class="icon-option" data-icon="💼">💼</button><button type="button" class="icon-option" data-icon="📚">📚</button><button type="button" class="icon-option" data-icon="💪">💪</button><button type="button" class="icon-option" data-icon="🎯">🎯</button><button type="button" class="icon-option" data-icon="💡">💡</button><button type="button" class="icon-option" data-icon="🎨">🎨</button><button type="button" class="icon-option" data-icon="✈️">✈️</button><button type="button" class="icon-option" data-icon="🏠">🏠</button><button type="button" class="icon-option" data-icon="❤️">❤️</button><button type="button" class="icon-option" data-icon="📝">📝</button><button type="button" class="icon-option" data-icon="🎮">🎮</button>
+        </div></div>
+        <div class="form-actions"><button type="button" class="btn-cancel" id="btn-project-cancel">取消</button><button type="submit" class="btn-save">创建</button></div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal" id="task-detail-modal">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content modal-medium">
+      <div class="modal-header"><h3>任务详情</h3><button class="modal-close" id="task-detail-close">×</button></div>
+      <div class="task-detail-body" id="task-detail-body"></div>
+    </div>
+  </div>
+
+  <!-- 统计面板 -->
+  <div class="stats-panel" id="stats-panel" style="display: none;">
+    <div class="stats-header"><h2>📊 统计</h2><button class="stats-close" id="stats-close">×</button></div>
+    <div class="stats-grid" id="stats-grid"></div>
+    <div class="stats-section">
+      <h3>完成趋势（近 7 天）</h3>
+      <div class="trend-chart" id="trend-chart"></div>
+    </div>
+    <div class="stats-section">
+      <h3>项目完成情况</h3>
+      <div class="project-stats" id="project-stats"></div>
+    </div>
+    <div class="stats-section">
+      <h3>耗时分布</h3>
+      <div class="duration-stats" id="duration-stats"></div>
+    </div>
+  </div>
+
+  <div class="stats-view" id="stats-view">
+    <div class="stats-header"><h2>统计概览</h2><button class="stats-close" id="stats-close">×</button></div>
+    <div class="stats-grid" id="stats-grid"></div>
+    <div class="stats-section">
+      <h3 class="stats-section-title">任务耗时分布</h3>
+      <div class="stats-bars" id="stats-duration-bars"></div>
+    </div>
+    <div class="stats-section">
+      <h3 class="stats-section-title">完成情况趋势（近 7 天）</h3>
+      <div class="stats-trend" id="stats-trend"></div>
+    </div>
+  </div>
+
+  <div class="modal" id="stats-modal">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content modal-large">
+      <div class="modal-header"><h3>📊 统计</h3><button class="modal-close" id="stats-close">×</button></div>
+      <div class="stats-body" id="stats-body"></div>
+    </div>
+  </div>
+
+  <!-- 醒目提醒弹窗 -->
+  <div class="alert-overlay" id="alert-overlay">
+    <div class="alert-card">
+      <div class="alert-icon">🔔</div>
+      <div class="alert-title">Things 3 提醒</div>
+      <div class="alert-task-title" id="alert-task-title"></div>
+      <div class="alert-meta" id="alert-meta"></div>
+      <div class="snooze-label">稍后提醒</div>
+      <div class="snooze-options">
+        <button type="button" class="snooze-btn" data-min="10">10 分钟</button>
+        <button type="button" class="snooze-btn" data-min="20">20 分钟</button>
+        <button type="button" class="snooze-btn" data-min="30">30 分钟</button>
+        <button type="button" class="snooze-btn" data-min="60">1 小时</button>
+        <button type="button" class="snooze-btn" data-min="180">3 小时</button>
+        <button type="button" class="snooze-btn" data-min="360">6 小时</button>
+        <button type="button" class="snooze-btn" data-min="720">12 小时</button>
+        <button type="button" class="snooze-btn" data-min="1440">24 小时</button>
+      </div>
+      <div class="snooze-custom">
+        <input type="datetime-local" id="snooze-custom-time">
+        <button type="button" class="snooze-btn snooze-btn-confirm" id="snooze-custom-confirm">再次选时间</button>
+      </div>
+      <div class="alert-actions">
+        <button class="alert-btn alert-btn-secondary" id="alert-dismiss">知道了</button>
+        <button class="alert-btn alert-btn-primary" id="alert-view">查看详情</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
