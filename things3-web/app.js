@@ -15,6 +15,7 @@ const elements = {
   projectsList: document.getElementById('projects-list'),
   todayCount: document.getElementById('today-count'),
   upcomingCount: document.getElementById('upcoming-count'),
+  overdueCount: document.getElementById('overdue-count'),
   taskModal: document.getElementById('task-modal'),
   projectModal: document.getElementById('project-modal'),
   taskDetailModal: document.getElementById('task-detail-modal'),
@@ -312,7 +313,7 @@ function getReminderDateTime(taskDate, reminderType, reminderTime) {
 
 // ===== Rendering =====
 function renderViewTitle() {
-  const titles = { today: '今天', upcoming: '近日', anytime: '随时', someday: '有一天', stats: '统计' };
+  const titles = { today: '今天', upcoming: '近日', overdue: '已过期', anytime: '随时', someday: '有一天', stats: '统计' };
   if (state.currentProjectId) {
     const project = state.projects.find(p => p.id === state.currentProjectId);
     elements.viewTitle.textContent = project ? `${project.icon} ${project.name}` : '项目';
@@ -643,6 +644,7 @@ function renderTasks() {
     switch (state.currentView) {
       case 'today': filtered = filtered.filter(t => isToday(t.date) && !t.completed); break;
       case 'upcoming': filtered = filtered.filter(t => isUpcoming(t.date) && !t.completed); break;
+      case 'overdue': filtered = filtered.filter(t => t.date && isOverdue(t.date) && !t.completed); break;
       case 'anytime': filtered = filtered.filter(t => !t.date && !t.completed); break;
       case 'someday': filtered = filtered.filter(t => t.someday && !t.completed); break;
     }
@@ -664,6 +666,7 @@ function renderTasks() {
   }
   elements.todayCount.textContent = state.tasks.filter(t => isToday(t.date) && !t.completed).length;
   elements.upcomingCount.textContent = state.tasks.filter(t => isUpcoming(t.date) && !t.completed).length;
+  if (elements.overdueCount) elements.overdueCount.textContent = state.tasks.filter(t => t.date && isOverdue(t.date) && !t.completed).length;
 }
 
 function render() {
