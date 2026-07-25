@@ -330,3 +330,7 @@ body { font-family: var(--font-family); font-size: 14px; color: var(--text-prima
 .stat-hour-cell.active { background: var(--accent-blue-light); }
 .stat-row { display: flex; gap: 14px; flex-wrap: wrap; }
 .stat-row .stat-section { flex: 1; min-width: 280px; }
+
+.nav-item[data-view="overdue"] { color: #ff3b30; }
+.nav-item[data-view="overdue"] .nav-count { background: #ff3b30; color: #fff; }
+.nav-item[data-view="stats"] { margin-top: auto; }
