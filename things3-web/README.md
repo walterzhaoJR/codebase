@@ -37,7 +37,7 @@ http://127.0.0.1:8123/index.html
 关闭终端后仍然保持服务运行：
 
 ```bash
-nohup python3 -m http.server 8123 --bind 127.0.0.1 > /tmp/things3-web.log 2>&1 &
+nohup python3 -m http.server 8123 --directory /Users/walterzhao/.qclaw/workspace/things3-web --bind 127.0.0.1 > /tmp/things3-web.log 2>&1 &
 ```
 
 之后浏览器访问 `http://127.0.0.1:8123/index.html` 即可。
