@@ -313,7 +313,7 @@ function getReminderDateTime(taskDate, reminderType, reminderTime) {
 
 // ===== Rendering =====
 function renderViewTitle() {
-  const titles = { today: '今天', upcoming: '近日', overdue: '已过期', anytime: '随时', someday: '有一天', stats: '统计' };
+  const titles = { today: '今天', upcoming: '近日', overdue: '已过期', anytime: '随时', someday: '有一天', completed: '已完成', stats: '统计' };
   if (state.currentProjectId) {
     const project = state.projects.find(p => p.id === state.currentProjectId);
     elements.viewTitle.textContent = project ? `${project.icon} ${project.name}` : '项目';
@@ -627,8 +627,10 @@ function renderTaskCard(task) {
           ${showProject ? `<span class="task-project">${project.icon} ${escapeHtml(project.name)}</span>` : ''}
           <div class="task-meta">
             ${task.date ? `<span class="task-date ${dateClass}">📅 ${formatDate(task.date)}</span>` : ''}
+            ${task.completedAt ? `<span class="task-completed-at">✅ ${formatDate(toDateStringLocal(new Date(task.completedAt)))} ${formatTimeForSnooze(task.completedAt)} 完成</span>` : ''}
             ${task.nextReminderAt ? `<span class="task-reminder">🔔 ${formatReminderDateTime(task.nextReminderAt)} 再次提醒</span>` : ''}
             ${!task.nextReminderAt && task.reminderType && task.reminderType !== 'none' ? `<span class="task-reminder">🔔 ${getReminderLabel(task.reminderType)}</span>` : ''}
+            ${task.completed && task.completedAt ? `<span class="task-reminder">✅ 完成于 ${formatReminderDateTime(task.completedAt)}</span>` : ''}
             ${tags.length > 0 ? `<div class="task-tags">${tags.map(tag => `<span class="task-tag">#${escapeHtml(tag)}</span>`).join('')}</div>` : ''}
           </div>
         </div>
@@ -648,34 +650,39 @@ function renderTasks() {
       case 'overdue': filtered = filtered.filter(t => t.date && isOverdue(t.date) && !t.completed); break;
       case 'anytime': filtered = filtered.filter(t => !t.date); break;
       case 'someday': filtered = filtered.filter(t => t.someday); break;
+      case 'completed': filtered = filtered.filter(t => t.completed); break;
     }
   }
 
-  const activeTasks = filtered.filter(t => !t.completed);
-  const completedTasks = filtered.filter(t => t.completed);
+  let displayTasks = filtered;
+  let completedHtml = '';
 
-  const renderList = tasks => tasks.map(renderTaskCard).join('');
-  const activeHtml = activeTasks.length ? renderList(activeTasks) : '';
-
-  const completedCollapsed = state.completedCollapsed || false;
-  const completedHtml = completedTasks.length ? `
-    <div class="completed-section">
-      <button class="completed-toggle" data-action="toggle-completed">
-        <span class="completed-arrow ${completedCollapsed ? 'collapsed' : ''}">▾</span>
-        <span>已完成 ${completedTasks.length}</span>
-      </button>
-      <div class="completed-list ${completedCollapsed ? 'collapsed' : ''}">
-        ${renderList(completedTasks)}
+  if (state.currentView === 'completed') {
+    displayTasks = filtered.sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0));
+  } else {
+    const activeTasks = filtered.filter(t => !t.completed);
+    const completedTasks = filtered.filter(t => t.completed);
+    const completedCollapsed = state.completedCollapsed || false;
+    completedHtml = completedTasks.length ? `
+      <div class="completed-section">
+        <button class="completed-toggle" data-action="toggle-completed">
+          <span class="completed-arrow ${completedCollapsed ? 'collapsed' : ''}">▾</span>
+          <span>已完成 ${completedTasks.length}</span>
+        </button>
+        <div class="completed-list ${completedCollapsed ? 'collapsed' : ''}">
+          ${completedTasks.map(renderTaskCard).join('')}
+        </div>
       </div>
-    </div>
-  ` : '';
+    ` : '';
+    displayTasks = activeTasks;
+  }
 
   if (filtered.length === 0) {
     elements.tasksContainer.innerHTML = '';
     elements.emptyState.style.display = 'flex';
   } else {
     elements.emptyState.style.display = 'none';
-    elements.tasksContainer.innerHTML = activeHtml + completedHtml;
+    elements.tasksContainer.innerHTML = displayTasks.map(renderTaskCard).join('') + completedHtml;
   }
   elements.todayCount.textContent = state.tasks.filter(t => isToday(t.date) && !t.completed).length;
   elements.upcomingCount.textContent = state.tasks.filter(t => isUpcoming(t.date) && !t.completed).length;
