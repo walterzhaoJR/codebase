@@ -617,13 +617,14 @@ function renderTaskCard(task) {
     if (isOverdue(task.date) && !isToday(task.date)) dateClass = 'overdue';
     else if (isToday(task.date)) dateClass = 'today';
   }
+  const showProject = project && !state.currentProjectId;
   return `
     <div class="task-card ${task.completed ? 'completed' : ''}" data-task-id="${task.id}">
       <div class="task-header">
         <div class="task-checkbox ${task.completed ? 'checked' : ''}" data-action="toggle" data-id="${task.id}">${task.completed ? '✓' : ''}</div>
         <div class="task-body">
           <div class="task-title">${escapeHtml(task.title)}</div>
-          ${project ? `<span class="task-project">${project.icon} ${escapeHtml(project.name)}</span>` : ''}
+          ${showProject ? `<span class="task-project">${project.icon} ${escapeHtml(project.name)}</span>` : ''}
           <div class="task-meta">
             ${task.date ? `<span class="task-date ${dateClass}">📅 ${formatDate(task.date)}</span>` : ''}
             ${task.nextReminderAt ? `<span class="task-reminder">🔔 ${formatReminderDateTime(task.nextReminderAt)} 再次提醒</span>` : ''}
