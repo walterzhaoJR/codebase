@@ -386,3 +386,6 @@ body { font-family: var(--font-family); font-size: 14px; color: var(--text-prima
 .completed-section .task-card .task-title {
   text-decoration: line-through;
 }
+
+.nav-item[data-view="completed"] { color: var(--accent-green); }
+.nav-item[data-view="completed"] .nav-icon { filter: none; }
