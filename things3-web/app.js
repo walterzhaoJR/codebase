@@ -642,27 +642,39 @@ function renderTasks() {
     filtered = filtered.filter(t => t.projectId === state.currentProjectId);
   } else {
     switch (state.currentView) {
-      case 'today': filtered = filtered.filter(t => isToday(t.date) && !t.completed); break;
-      case 'upcoming': filtered = filtered.filter(t => isUpcoming(t.date) && !t.completed); break;
+      case 'today': filtered = filtered.filter(t => isToday(t.date)); break;
+      case 'upcoming': filtered = filtered.filter(t => isUpcoming(t.date)); break;
       case 'overdue': filtered = filtered.filter(t => t.date && isOverdue(t.date) && !t.completed); break;
-      case 'anytime': filtered = filtered.filter(t => !t.date && !t.completed); break;
-      case 'someday': filtered = filtered.filter(t => t.someday && !t.completed); break;
+      case 'anytime': filtered = filtered.filter(t => !t.date); break;
+      case 'someday': filtered = filtered.filter(t => t.someday); break;
     }
   }
-  filtered.sort((a, b) => {
-    if (a.completed !== b.completed) return a.completed ? 1 : -1;
-    if (!a.date && !b.date) return 0;
-    if (!a.date) return 1;
-    if (!b.date) return -1;
-    return new Date(a.date) - new Date(b.date);
-  });
+
+  const activeTasks = filtered.filter(t => !t.completed);
+  const completedTasks = filtered.filter(t => t.completed);
+
+  const renderList = tasks => tasks.map(renderTaskCard).join('');
+  const activeHtml = activeTasks.length ? renderList(activeTasks) : '';
+
+  const completedCollapsed = state.completedCollapsed || false;
+  const completedHtml = completedTasks.length ? `
+    <div class="completed-section">
+      <button class="completed-toggle" data-action="toggle-completed">
+        <span class="completed-arrow ${completedCollapsed ? 'collapsed' : ''}">▾</span>
+        <span>已完成 ${completedTasks.length}</span>
+      </button>
+      <div class="completed-list ${completedCollapsed ? 'collapsed' : ''}">
+        ${renderList(completedTasks)}
+      </div>
+    </div>
+  ` : '';
 
   if (filtered.length === 0) {
     elements.tasksContainer.innerHTML = '';
     elements.emptyState.style.display = 'flex';
   } else {
     elements.emptyState.style.display = 'none';
-    elements.tasksContainer.innerHTML = filtered.map(renderTaskCard).join('');
+    elements.tasksContainer.innerHTML = activeHtml + completedHtml;
   }
   elements.todayCount.textContent = state.tasks.filter(t => isToday(t.date) && !t.completed).length;
   elements.upcomingCount.textContent = state.tasks.filter(t => isUpcoming(t.date) && !t.completed).length;
@@ -992,6 +1004,13 @@ function setupEventListeners() {
   elements.tasksContainer.addEventListener('click', e => {
     const checkbox = e.target.closest('.task-checkbox[data-action="toggle"]');
     const card = e.target.closest('.task-card');
+    const toggleCompleted = e.target.closest('[data-action="toggle-completed"]');
+    if (toggleCompleted) {
+      e.stopPropagation();
+      state.completedCollapsed = !state.completedCollapsed;
+      render();
+      return;
+    }
     if (checkbox) { e.stopPropagation(); toggleTask(checkbox.dataset.id); return; }
     if (card) openTaskDetail(card.dataset.taskId);
   });

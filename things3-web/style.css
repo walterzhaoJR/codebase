@@ -334,3 +334,55 @@ body { font-family: var(--font-family); font-size: 14px; color: var(--text-prima
 .nav-item[data-view="overdue"] { color: #ff3b30; }
 .nav-item[data-view="overdue"] .nav-count { background: #ff3b30; color: #fff; }
 .nav-item[data-view="stats"] { margin-top: auto; }
+
+.completed-section {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-light);
+}
+
+.completed-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px 0;
+  margin-bottom: 8px;
+}
+
+.completed-toggle:hover {
+  color: var(--text-primary);
+}
+
+.completed-arrow {
+  display: inline-block;
+  transition: transform 0.2s ease;
+  font-size: 12px;
+}
+
+.completed-arrow.collapsed {
+  transform: rotate(-90deg);
+}
+
+.completed-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.completed-list.collapsed {
+  display: none;
+}
+
+.completed-section .task-card {
+  opacity: 0.7;
+}
+
+.completed-section .task-card .task-title {
+  text-decoration: line-through;
+}
