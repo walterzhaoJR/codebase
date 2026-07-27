@@ -389,3 +389,12 @@ body { font-family: var(--font-family); font-size: 14px; color: var(--text-prima
 
 .nav-item[data-view="completed"] { color: var(--accent-green); }
 .nav-item[data-view="completed"] .nav-icon { filter: none; }
+
+.alert-queue-info {
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-tertiary);
+  margin-top: -8px;
+  margin-bottom: 8px;
+  min-height: 18px;
+}
