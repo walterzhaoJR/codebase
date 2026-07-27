@@ -195,6 +195,7 @@ function requestNotificationPermission() {
   }
 }
 
+let alertQueue = [];
 let currentAlertTaskId = null;
 
 function showNotification(title, body) {
@@ -203,17 +204,28 @@ function showNotification(title, body) {
   }
 }
 
-function showAlert(task) {
+function showNextAlert() {
+  if (alertQueue.length === 0) {
+    currentAlertTaskId = null;
+    hideAlert();
+    return;
+  }
+  const task = alertQueue.shift();
   currentAlertTaskId = task.id;
   const overlay = document.getElementById('alert-overlay');
   const taskTitleEl = document.getElementById('alert-task-title');
   const metaEl = document.getElementById('alert-meta');
+  const queueInfoEl = document.getElementById('alert-queue-info');
   const project = state.projects.find(p => p.id === task.projectId);
   const dateText = task.date ? formatDate(task.date) : '未设置日期';
   const projectText = project ? `${project.icon} ${project.name}` : '无项目';
 
   taskTitleEl.textContent = task.title;
   metaEl.textContent = `${projectText} · ${dateText}`;
+
+  if (queueInfoEl) {
+    queueInfoEl.textContent = alertQueue.length > 0 ? `还有 ${alertQueue.length} 个待处理提醒` : '';
+  }
 
   // 设置自定义时间默认值为当前时间 + 10 分钟
   const defaultCustom = new Date(Date.now() + 10 * 60 * 1000);
@@ -224,6 +236,12 @@ function showAlert(task) {
 
   // 播放提示音
   playAlertSound();
+}
+
+function showAlert(task) {
+  alertQueue.push(task);
+  if (document.getElementById('alert-overlay').classList.contains('show')) return;
+  showNextAlert();
 }
 
 function formatDateTimeLocal(date) {
@@ -242,7 +260,10 @@ function formatReminderDateTime(timestamp) {
 
 function hideAlert() {
   document.getElementById('alert-overlay').classList.remove('show');
-  currentAlertTaskId = null;
+  setTimeout(() => {
+    if (alertQueue.length > 0) showNextAlert();
+    else currentAlertTaskId = null;
+  }, 200);
 }
 
 function playAlertSound() {
@@ -275,6 +296,7 @@ function startReminders() {
 function checkDueReminders() {
   const now = Date.now();
   let changed = false;
+  const dueTasks = [];
   state.tasks.forEach(task => {
     if (task.completed) return;
     if (!task.reminderType || task.reminderType === 'none') return;
@@ -290,12 +312,19 @@ function checkDueReminders() {
       task.reminderTime = null;
       task.nextReminderAt = null;
       task.snoozeUntil = null;
-      showNotification('Things 3 提醒', task.title);
-      showAlert(task);
+      dueTasks.push(task);
       task.notifiedAt = now;
       changed = true;
     }
   });
+  if (dueTasks.length > 0) {
+    dueTasks.forEach((task, index) => {
+      if (index === 0) {
+        showNotification('Things 3 提醒', `你有 ${dueTasks.length} 个任务到期`);
+      }
+      showAlert(task);
+    });
+  }
   if (changed) {
     saveState();
     render();
