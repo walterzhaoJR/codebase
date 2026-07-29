@@ -299,7 +299,8 @@ function checkDueReminders() {
   const dueTasks = [];
   state.tasks.forEach(task => {
     if (task.completed) return;
-    if (!task.reminderType || task.reminderType === 'none') return;
+    const hasReminder = (task.reminderType && task.reminderType !== 'none') || task.nextReminderAt;
+    if (!hasReminder) return;
 
     const snoozeUntil = task.snoozeUntil || 0;
     if (now < snoozeUntil) return;
