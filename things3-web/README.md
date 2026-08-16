@@ -4,8 +4,7 @@ Things 3 风格的网页版任务管理应用。功能与 Electron 版一致，�
 
 ## ✨ 功能
 
-- 任务管理：新建、编辑、完成、删除，以及一层父子任务
-- 子任务：可单独完成；点击父任务可折叠/展开全部子任务；完成父任务时会同时完成其全部子任务
+- 任务管理：新建、编辑、完成、删除
 - 项目分组：创建、编辑、删除项目
 - 多视图：今天 / 近日 / 随时 / 有一天
 - 日期与提醒：自定义截止日期和提醒时间
@@ -23,7 +22,7 @@ Things 3 风格的网页版任务管理应用。功能与 Electron 版一致，�
 在终端执行：
 
 ```bash
-cd /Users/walterzhao/Desktop/code/codebase/things3-web
+cd /Users/walterzhao/.qclaw/workspace/things3-web
 python3 -m http.server 8123 --bind 127.0.0.1
 ```
 
@@ -33,27 +32,15 @@ python3 -m http.server 8123 --bind 127.0.0.1
 http://127.0.0.1:8123/index.html
 ```
 
-### 后台运行（当前本机部署方式）
+### 后台运行
 
-使用 macOS 用户级进程管理器托管服务，关闭终端后仍然保持运行：
-
-```bash
-launchctl submit -l com.walterzhao.things3-web \
-  -o /private/tmp/things3-web-server.log \
-  -e /private/tmp/things3-web-server.log \
-  -- "/Users/walterzhao/Library/Application Support/QClaw/python/bin/python3.11" \
-  -m http.server 8123 \
-  --directory /Users/walterzhao/Desktop/code/codebase/things3-web \
-  --bind 127.0.0.1
-```
-
-停止服务：
+关闭终端后仍然保持服务运行：
 
 ```bash
-launchctl remove com.walterzhao.things3-web
+nohup python3 -m http.server 8123 --bind 127.0.0.1 > /tmp/things3-web.log 2>&1 &
 ```
 
-代码文件修改后服务会直接读取新版本，无需重启；浏览器需要刷新页面。该临时服务会持续到退出当前 macOS 登录会话，但不会在重启电脑后自动恢复。
+之后浏览器访问 `http://127.0.0.1:8123/index.html` 即可。
 
 ### 固定使用
 建议将页面固定在浏览器标签页，或通过 PWA 方式添加到主屏。

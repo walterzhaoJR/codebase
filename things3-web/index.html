@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Things 3 Web</title>
-  <link rel="stylesheet" href="style.css?v=20260816-parent-collapse">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div id="app">
@@ -54,12 +54,7 @@
       <div class="modal-header"><h3 id="modal-title">新建任务</h3><button class="modal-close" id="modal-close">×</button></div>
       <form id="task-form">
         <input type="hidden" id="task-id">
-        <input type="hidden" id="task-parent-id">
         <div class="form-group"><input type="text" id="task-title" placeholder="任务标题" required autocomplete="off"></div>
-        <div class="form-group task-parent-context" id="task-parent-context" hidden>
-          <label>父任务</label>
-          <div class="task-parent-name" id="task-parent-name"></div>
-        </div>
         <div class="form-group"><select id="task-project"><option value="">无项目</option></select></div>
         <div class="form-group">
           <label>何时</label>
@@ -144,6 +139,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="app.js?v=20260816-parent-collapse"></script>
+  <script src="app.js"></script>
 </body>
 </html>

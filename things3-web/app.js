@@ -5,8 +5,7 @@ let state = {
   projects: [],
   currentView: 'today',
   currentProjectId: null,
-  editingTaskId: null,
-  collapsedTaskIds: new Set()
+  editingTaskId: null
 };
 
 const elements = {
@@ -42,12 +41,9 @@ function loadState() {
           task.nextReminderAt = task.snoozeUntil;
         }
         delete task.snoozeUntil;
-        // 兼容旧版数据：旧任务默认都是顶层任务。
-        task.parentId = task.parentId || null;
         return task;
       });
       state.projects = data.projects || [];
-      normalizeTaskHierarchy();
     }
   } catch (e) {
     console.error('加载数据失败', e);
@@ -79,9 +75,8 @@ function importData(text) {
   try {
     const data = JSON.parse(text);
     if (Array.isArray(data.tasks) && Array.isArray(data.projects)) {
-      state.tasks = data.tasks.map(task => ({ ...task, parentId: task.parentId || null }));
+      state.tasks = data.tasks;
       state.projects = data.projects;
-      normalizeTaskHierarchy();
       saveState();
       render();
       return true;
@@ -95,58 +90,6 @@ function importData(text) {
 // ===== Utilities =====
 function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2);
-}
-
-function normalizeTaskHierarchy() {
-  const taskMap = new Map(state.tasks.map(task => [task.id, task]));
-
-  state.tasks.forEach(task => {
-    if (!task.parentId || task.parentId === task.id || !taskMap.has(task.parentId)) {
-      task.parentId = null;
-      return;
-    }
-
-    // 导入的数据可能包含循环引用；发现循环时将当前任务恢复为顶层任务。
-    const visited = new Set([task.id]);
-    let ancestorId = task.parentId;
-    while (ancestorId) {
-      if (visited.has(ancestorId)) {
-        task.parentId = null;
-        break;
-      }
-      visited.add(ancestorId);
-      ancestorId = taskMap.get(ancestorId)?.parentId || null;
-    }
-  });
-
-  // 子任务始终和父任务属于同一个项目，避免层级在项目视图中被拆开。
-  state.tasks.forEach(task => {
-    if (!task.parentId) return;
-    const parent = taskMap.get(task.parentId);
-    if (parent) task.projectId = parent.projectId || null;
-  });
-}
-
-function getChildTasks(taskId) {
-  return state.tasks.filter(task => task.parentId === taskId);
-}
-
-function getDescendantTasks(taskId) {
-  const descendants = [];
-  const pendingIds = [taskId];
-  const visited = new Set(pendingIds);
-
-  while (pendingIds.length) {
-    const currentId = pendingIds.shift();
-    getChildTasks(currentId).forEach(child => {
-      if (visited.has(child.id)) return;
-      visited.add(child.id);
-      descendants.push(child);
-      pendingIds.push(child.id);
-    });
-  }
-
-  return descendants;
 }
 
 // 统一用本地时区的日期处理，避免 toISOString()/new Date(string) 导致时区偏差
@@ -696,11 +639,8 @@ function renderProjectsList() {
     state.projects.map(p => `<option value="${p.id}">${p.icon} ${escapeHtml(p.name)}</option>`).join('');
 }
 
-function renderTaskCard(task, options = {}) {
+function renderTaskCard(task) {
   const project = state.projects.find(p => p.id === task.projectId);
-  const parent = task.parentId ? state.tasks.find(t => t.id === task.parentId) : null;
-  const children = getChildTasks(task.id);
-  const completedChildren = children.filter(child => child.completed).length;
   const tags = task.tags ? task.tags.split(',').map(t => t.trim()).filter(t => t) : [];
   let dateClass = '';
   if (task.date) {
@@ -708,15 +648,13 @@ function renderTaskCard(task, options = {}) {
     else if (isToday(task.date)) dateClass = 'today';
   }
   const showProject = project && !state.currentProjectId;
-  const hasChildren = children.length > 0;
   return `
-    <div class="task-card ${task.completed ? 'completed' : ''} ${options.isChild ? 'child-task-card' : ''} ${hasChildren ? 'has-subtasks' : ''}" data-task-id="${task.id}" ${hasChildren ? 'title="点击折叠或展开子任务"' : ''}>
+    <div class="task-card ${task.completed ? 'completed' : ''}" data-task-id="${task.id}">
       <div class="task-header">
         <div class="task-checkbox ${task.completed ? 'checked' : ''}" data-action="toggle" data-id="${task.id}">${task.completed ? '✓' : ''}</div>
         <div class="task-body">
           <div class="task-title">${escapeHtml(task.title)}</div>
           ${showProject ? `<span class="task-project">${project.icon} ${escapeHtml(project.name)}</span>` : ''}
-          ${options.showParent && parent ? `<span class="task-parent-badge">↳ ${escapeHtml(parent.title)}</span>` : ''}
           <div class="task-meta">
             ${task.date ? `<span class="task-date ${dateClass}">📅 ${formatDate(task.date)}</span>` : ''}
             ${task.completedAt ? `<span class="task-completed-at">✅ ${formatDate(toDateStringLocal(new Date(task.completedAt)))} ${formatTimeForSnooze(task.completedAt)} 完成</span>` : ''}
@@ -724,55 +662,11 @@ function renderTaskCard(task, options = {}) {
             ${!task.nextReminderAt && task.reminderType && task.reminderType !== 'none' ? `<span class="task-reminder">🔔 ${getReminderLabel(task.reminderType)}</span>` : ''}
             ${task.completed && task.completedAt ? `<span class="task-reminder">✅ 完成于 ${formatReminderDateTime(task.completedAt)}</span>` : ''}
             ${tags.length > 0 ? `<div class="task-tags">${tags.map(tag => `<span class="task-tag">#${escapeHtml(tag)}</span>`).join('')}</div>` : ''}
-            ${children.length > 0 ? `
-              <button type="button" class="task-subtask-progress" data-action="toggle-subtasks" data-id="${task.id}" aria-expanded="${!state.collapsedTaskIds.has(task.id)}" title="${state.collapsedTaskIds.has(task.id) ? '展开子任务' : '折叠子任务'}">
-                <span class="task-subtask-arrow">${state.collapsedTaskIds.has(task.id) ? '▸' : '▾'}</span>
-                <span>${children.length} 个子任务</span>
-                <span class="task-subtask-completed">· 已完成 ${completedChildren}</span>
-              </button>
-            ` : ''}
           </div>
         </div>
-        ${!task.parentId ? `
-          <div class="task-card-actions">
-            <button type="button" class="task-card-action task-view-detail" data-action="view-task" data-id="${task.id}" title="查看任务详情" aria-label="查看任务详情">•••</button>
-            <button type="button" class="task-card-action task-add-subtask" data-action="add-subtask" data-id="${task.id}" title="添加子任务">+ 子任务</button>
-          </div>
-        ` : ''}
       </div>
     </div>
   `;
-}
-
-function renderTaskTrees(tasks) {
-  const taskMap = new Map(tasks.map(task => [task.id, task]));
-  const childrenByParent = new Map();
-
-  tasks.forEach(task => {
-    if (!task.parentId || !taskMap.has(task.parentId)) return;
-    if (!childrenByParent.has(task.parentId)) childrenByParent.set(task.parentId, []);
-    childrenByParent.get(task.parentId).push(task);
-  });
-
-  const roots = tasks.filter(task => !task.parentId || !taskMap.has(task.parentId));
-  const renderNode = (task, depth = 0) => {
-    const children = childrenByParent.get(task.id) || [];
-    const collapsed = state.collapsedTaskIds.has(task.id);
-    return `
-      <div class="task-tree-node ${depth > 0 ? 'is-child' : ''}">
-        ${renderTaskCard(task, { isChild: depth > 0, showParent: depth === 0 && !!task.parentId })}
-        ${children.length && !collapsed ? `<div class="subtasks-list">${children.map(child => renderNode(child, depth + 1)).join('')}</div>` : ''}
-      </div>
-    `;
-  };
-
-  return roots.map(root => renderNode(root)).join('');
-}
-
-function toggleSubtasks(taskId) {
-  if (state.collapsedTaskIds.has(taskId)) state.collapsedTaskIds.delete(taskId);
-  else state.collapsedTaskIds.add(taskId);
-  render();
 }
 
 function renderTasks() {
@@ -796,24 +690,8 @@ function renderTasks() {
   if (state.currentView === 'completed') {
     displayTasks = filtered.sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0));
   } else {
-    const filteredIds = new Set(filtered.map(task => task.id));
-    const rootTasks = filtered.filter(task => !task.parentId || !filteredIds.has(task.parentId));
-    const activeRootIds = new Set(rootTasks.filter(task => !task.completed).map(task => task.id));
-    const completedRootIds = new Set(rootTasks.filter(task => task.completed).map(task => task.id));
-    const belongsToRootSet = (task, rootIds) => {
-      let current = task;
-      const visited = new Set();
-      while (current && !visited.has(current.id)) {
-        if (rootIds.has(current.id)) return true;
-        visited.add(current.id);
-        current = current.parentId && filteredIds.has(current.parentId)
-          ? state.tasks.find(candidate => candidate.id === current.parentId)
-          : null;
-      }
-      return false;
-    };
-    const activeTasks = filtered.filter(task => belongsToRootSet(task, activeRootIds));
-    const completedTasks = filtered.filter(task => belongsToRootSet(task, completedRootIds));
+    const activeTasks = filtered.filter(t => !t.completed);
+    const completedTasks = filtered.filter(t => t.completed);
     const completedCollapsed = state.completedCollapsed || false;
     completedHtml = completedTasks.length ? `
       <div class="completed-section">
@@ -822,7 +700,7 @@ function renderTasks() {
           <span>已完成 ${completedTasks.length}</span>
         </button>
         <div class="completed-list ${completedCollapsed ? 'collapsed' : ''}">
-          ${renderTaskTrees(completedTasks)}
+          ${completedTasks.map(renderTaskCard).join('')}
         </div>
       </div>
     ` : '';
@@ -834,7 +712,7 @@ function renderTasks() {
     elements.emptyState.style.display = 'flex';
   } else {
     elements.emptyState.style.display = 'none';
-    elements.tasksContainer.innerHTML = renderTaskTrees(displayTasks) + completedHtml;
+    elements.tasksContainer.innerHTML = displayTasks.map(renderTaskCard).join('') + completedHtml;
   }
   elements.todayCount.textContent = state.tasks.filter(t => isToday(t.date) && !t.completed).length;
   elements.upcomingCount.textContent = state.tasks.filter(t => isUpcoming(t.date) && !t.completed).length;
@@ -855,22 +733,17 @@ function render() {
 function showModal(modal) { modal.classList.add('show'); }
 function hideModal(modal) { modal.classList.remove('show'); }
 
-function openTaskModal(taskId = null, parentId = null) {
+function openTaskModal(taskId = null) {
   state.editingTaskId = taskId;
   elements.taskForm.reset();
   document.getElementById('task-id').value = '';
-  document.getElementById('task-parent-id').value = '';
-  document.getElementById('task-parent-context').hidden = true;
-  document.getElementById('task-project').disabled = false;
   document.querySelectorAll('.date-btn').forEach(b => b.classList.remove('selected'));
   document.getElementById('task-reminder-time').style.display = 'none';
 
   if (taskId) {
     const task = state.tasks.find(t => t.id === taskId);
     if (task) {
-      const parent = task.parentId ? state.tasks.find(t => t.id === task.parentId) : null;
       document.getElementById('task-id').value = task.id;
-      document.getElementById('task-parent-id').value = task.parentId || '';
       document.getElementById('task-title').value = task.title;
       document.getElementById('task-project').value = task.projectId || '';
       document.getElementById('task-tags').value = task.tags || '';
@@ -879,29 +752,13 @@ function openTaskModal(taskId = null, parentId = null) {
       document.getElementById('task-reminder-time').value = task.reminderTime || '09:00';
       document.getElementById('task-reminder-time').style.display = task.reminderType && task.reminderType !== 'none' ? 'block' : 'none';
       if (task.date) document.getElementById('task-date').value = task.date;
-      if (parent) {
-        document.getElementById('task-parent-name').textContent = parent.title;
-        document.getElementById('task-parent-context').hidden = false;
-        document.getElementById('task-project').disabled = true;
-      }
-      document.getElementById('modal-title').textContent = task.parentId ? '编辑子任务' : '编辑任务';
+      document.getElementById('modal-title').textContent = '编辑任务';
     }
   } else {
-    const parent = parentId ? state.tasks.find(t => t.id === parentId) : null;
-    if (parent) {
-      document.getElementById('task-parent-id').value = parent.id;
-      document.getElementById('task-parent-name').textContent = parent.title;
-      document.getElementById('task-parent-context').hidden = false;
-      document.getElementById('task-project').value = parent.projectId || '';
-      document.getElementById('task-project').disabled = true;
-      document.getElementById('modal-title').textContent = '新建子任务';
-    } else {
-      document.getElementById('modal-title').textContent = '新建任务';
-      if (state.currentProjectId) document.getElementById('task-project').value = state.currentProjectId;
-    }
+    document.getElementById('modal-title').textContent = '新建任务';
+    if (state.currentProjectId) document.getElementById('task-project').value = state.currentProjectId;
   }
   showModal(elements.taskModal);
-  document.getElementById('task-title').focus();
 }
 
 function openProjectModal() {
@@ -925,37 +782,15 @@ function openTaskDetail(taskId) {
   const task = state.tasks.find(t => t.id === taskId);
   if (!task) return;
   const project = state.projects.find(p => p.id === task.projectId);
-  const parent = task.parentId ? state.tasks.find(t => t.id === task.parentId) : null;
-  const children = getChildTasks(task.id);
-  const completedChildren = children.filter(child => child.completed).length;
   const tags = task.tags ? task.tags.split(',').map(t => t.trim()).filter(t => t) : [];
   document.getElementById('task-detail-body').innerHTML = `
     <div class="task-detail-section"><div class="task-detail-label">任务</div><div class="task-detail-value" style="font-size:18px;font-weight:500;">${escapeHtml(task.title)}</div></div>
-    ${parent ? `<div class="task-detail-section"><div class="task-detail-label">父任务</div><button type="button" class="task-detail-link" data-action="view-task" data-id="${parent.id}">↳ ${escapeHtml(parent.title)}</button></div>` : ''}
     ${project ? `<div class="task-detail-section"><div class="task-detail-label">项目</div><div class="task-detail-value">${project.icon} ${escapeHtml(project.name)}</div></div>` : ''}
     ${task.date ? `<div class="task-detail-section"><div class="task-detail-label">何时</div><div class="task-detail-value">${formatDate(task.date)}</div></div>` : ''}
     ${task.nextReminderAt ? `<div class="task-detail-section"><div class="task-detail-label">再次提醒</div><div class="task-detail-value">${formatReminderDateTime(task.nextReminderAt)}</div></div>` : ''}
     ${task.reminderType && task.reminderType !== 'none' ? `<div class="task-detail-section"><div class="task-detail-label">提醒</div><div class="task-detail-value">${getReminderLabel(task.reminderType)} ${task.reminderTime || ''}</div></div>` : ''}
     ${tags.length > 0 ? `<div class="task-detail-section"><div class="task-detail-label">标签</div><div class="task-tags">${tags.map(tag => `<span class="task-tag">#${escapeHtml(tag)}</span>`).join('')}</div></div>` : ''}
     ${task.notes ? `<div class="task-detail-section"><div class="task-detail-label">备注</div><div class="task-detail-value">${escapeHtml(task.notes)}</div></div>` : ''}
-    ${!task.parentId ? `
-      <div class="task-detail-section task-detail-subtasks-section">
-        <div class="task-detail-subtasks-header">
-          <div class="task-detail-label">子任务 ${children.length ? `${completedChildren}/${children.length}` : ''}</div>
-          <button type="button" class="add-detail-subtask" data-action="add-subtask" data-id="${task.id}">+ 添加子任务</button>
-        </div>
-        ${children.length ? `
-          <div class="detail-subtasks-list">
-            ${children.map(child => `
-              <div class="detail-subtask-row ${child.completed ? 'completed' : ''}">
-                <button type="button" class="detail-subtask-checkbox ${child.completed ? 'checked' : ''}" data-action="toggle-detail-subtask" data-id="${child.id}" data-parent-id="${task.id}">${child.completed ? '✓' : ''}</button>
-                <button type="button" class="detail-subtask-title" data-action="view-task" data-id="${child.id}">${escapeHtml(child.title)}</button>
-              </div>
-            `).join('')}
-          </div>
-        ` : '<div class="detail-subtasks-empty">还没有子任务</div>'}
-      </div>
-    ` : ''}
     <div class="task-detail-actions">
       <button class="task-detail-btn" id="edit-task-btn" data-id="${task.id}">✏️ 编辑</button>
       <button class="task-detail-btn danger" id="delete-task-btn" data-id="${task.id}">🗑️ 删除</button>
@@ -968,29 +803,11 @@ function openTaskDetail(taskId) {
 function toggleTask(taskId) {
   const task = state.tasks.find(t => t.id === taskId);
   if (task) {
-    const completing = !task.completed;
-    const now = Date.now();
-    const affectedTasks = completing ? [task, ...getDescendantTasks(task.id)] : [task];
-
-    if (!completing) {
-      // 重新打开子任务时同步重新打开父任务，保证已完成父任务下不会出现未完成子任务。
-      let parentId = task.parentId;
-      const visited = new Set();
-      while (parentId && !visited.has(parentId)) {
-        visited.add(parentId);
-        const parent = state.tasks.find(candidate => candidate.id === parentId);
-        if (!parent) break;
-        affectedTasks.push(parent);
-        parentId = parent.parentId;
-      }
-    }
-
-    affectedTasks.forEach(affectedTask => {
-      affectedTask.completed = completing;
-      affectedTask.completedAt = completing ? now : null;
-      affectedTask.notifiedAt = null;
-      affectedTask.nextReminderAt = null;
-    });
+    task.completed = !task.completed;
+    if (task.completed) task.completedAt = Date.now();
+    else delete task.completedAt;
+    task.notifiedAt = null;
+    task.nextReminderAt = null;
     saveState();
     render();
   }
@@ -998,29 +815,17 @@ function toggleTask(taskId) {
 
 function saveTask(formData) {
   const taskId = document.getElementById('task-id').value;
-  const parentId = formData.parentId || null;
-  const parent = parentId ? state.tasks.find(task => task.id === parentId) : null;
-  if (parent) formData.projectId = parent.projectId || null;
   const needsReminder = formData.reminderType && formData.reminderType !== 'none';
   if (needsReminder) requestNotificationPermission();
 
   if (taskId) {
     const idx = state.tasks.findIndex(t => t.id === taskId);
-    if (idx !== -1) {
-      const oldProjectId = state.tasks[idx].projectId || null;
-      state.tasks[idx] = { ...state.tasks[idx], ...formData, parentId, notifiedAt: null, nextReminderAt: null, completedAt: state.tasks[idx].completed ? state.tasks[idx].completedAt : null };
-      if (!parentId && oldProjectId !== state.tasks[idx].projectId) {
-        getDescendantTasks(taskId).forEach(descendant => {
-          descendant.projectId = state.tasks[idx].projectId || null;
-        });
-      }
-    }
+    if (idx !== -1) state.tasks[idx] = { ...state.tasks[idx], ...formData, notifiedAt: null, nextReminderAt: null, completedAt: state.tasks[idx].completed ? state.tasks[idx].completedAt : null };
   } else {
     state.tasks.push({
       id: generateId(),
       title: formData.title,
-      parentId,
-      projectId: parent ? parent.projectId || null : formData.projectId || null,
+      projectId: formData.projectId || null,
       date: formData.date || null,
       reminderType: formData.reminderType || 'none',
       reminderTime: formData.reminderTime || '09:00',
@@ -1040,13 +845,8 @@ function saveTask(formData) {
 }
 
 function deleteTask(taskId) {
-  const descendants = getDescendantTasks(taskId);
-  const message = descendants.length
-    ? `确定要删除这个任务及其 ${descendants.length} 个子任务吗？`
-    : '确定要删除这个任务吗？';
-  if (confirm(message)) {
-    const deletedIds = new Set([taskId, ...descendants.map(task => task.id)]);
-    state.tasks = state.tasks.filter(t => !deletedIds.has(t.id));
+  if (confirm('确定要删除这个任务吗？')) {
+    state.tasks = state.tasks.filter(t => t.id !== taskId);
     saveState();
     hideModal(elements.taskDetailModal);
     render();
@@ -1194,7 +994,6 @@ function setupEventListeners() {
     e.preventDefault();
     saveTask({
       title: document.getElementById('task-title').value,
-      parentId: document.getElementById('task-parent-id').value || null,
       projectId: document.getElementById('task-project').value || null,
       date: document.getElementById('task-date').value || null,
       reminderType: document.getElementById('task-reminder-type').value,
@@ -1236,27 +1035,12 @@ function setupEventListeners() {
   document.getElementById('task-detail-body').addEventListener('click', e => {
     const editBtn = e.target.closest('#edit-task-btn');
     const deleteBtn = e.target.closest('#delete-task-btn');
-    const addSubtaskBtn = e.target.closest('[data-action="add-subtask"]');
-    const toggleSubtaskBtn = e.target.closest('[data-action="toggle-detail-subtask"]');
-    const viewTaskBtn = e.target.closest('[data-action="view-task"]');
     if (editBtn) { hideModal(elements.taskDetailModal); openTaskModal(editBtn.dataset.id); }
-    else if (deleteBtn) deleteTask(deleteBtn.dataset.id);
-    else if (addSubtaskBtn) {
-      hideModal(elements.taskDetailModal);
-      openTaskModal(null, addSubtaskBtn.dataset.id);
-    } else if (toggleSubtaskBtn) {
-      toggleTask(toggleSubtaskBtn.dataset.id);
-      openTaskDetail(toggleSubtaskBtn.dataset.parentId);
-    } else if (viewTaskBtn) {
-      openTaskDetail(viewTaskBtn.dataset.id);
-    }
+    if (deleteBtn) deleteTask(deleteBtn.dataset.id);
   });
 
   elements.tasksContainer.addEventListener('click', e => {
     const checkbox = e.target.closest('.task-checkbox[data-action="toggle"]');
-    const addSubtaskBtn = e.target.closest('[data-action="add-subtask"]');
-    const toggleSubtasksBtn = e.target.closest('[data-action="toggle-subtasks"]');
-    const viewTaskBtn = e.target.closest('[data-action="view-task"]');
     const card = e.target.closest('.task-card');
     const toggleCompleted = e.target.closest('[data-action="toggle-completed"]');
     if (toggleCompleted) {
@@ -1265,27 +1049,8 @@ function setupEventListeners() {
       render();
       return;
     }
-    if (toggleSubtasksBtn) {
-      e.stopPropagation();
-      toggleSubtasks(toggleSubtasksBtn.dataset.id);
-      return;
-    }
-    if (viewTaskBtn) {
-      e.stopPropagation();
-      openTaskDetail(viewTaskBtn.dataset.id);
-      return;
-    }
-    if (addSubtaskBtn) {
-      e.stopPropagation();
-      openTaskModal(null, addSubtaskBtn.dataset.id);
-      return;
-    }
     if (checkbox) { e.stopPropagation(); toggleTask(checkbox.dataset.id); return; }
-    if (card) {
-      const task = state.tasks.find(candidate => candidate.id === card.dataset.taskId);
-      if (task && !task.parentId && getChildTasks(task.id).length > 0) toggleSubtasks(task.id);
-      else openTaskDetail(card.dataset.taskId);
-    }
+    if (card) openTaskDetail(card.dataset.taskId);
   });
 
   document.getElementById('task-reminder-type').addEventListener('change', e => {
