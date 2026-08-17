@@ -261,6 +261,25 @@ function showNotification(title, body) {
   }
 }
 
+function getParentTask(task) {
+  if (!task || !task.parentId) return null;
+  return state.tasks.find(candidate => candidate.id === task.parentId) || null;
+}
+
+function getReminderTaskLabel(task) {
+  const parent = getParentTask(task);
+  return parent ? `${parent.title} › ${task.title}` : task.title;
+}
+
+function getDueTasksNotificationBody(tasks) {
+  if (tasks.length === 1) return getReminderTaskLabel(tasks[0]);
+
+  const visibleTasks = tasks.slice(0, 3).map(getReminderTaskLabel);
+  const remainingCount = tasks.length - visibleTasks.length;
+  if (remainingCount > 0) visibleTasks.push(`还有 ${remainingCount} 个任务…`);
+  return `你有 ${tasks.length} 个任务到期\n${visibleTasks.join('\n')}`;
+}
+
 function showNextAlert() {
   if (alertQueue.length === 0) {
     currentAlertTaskId = null;
@@ -271,13 +290,17 @@ function showNextAlert() {
   currentAlertTaskId = task.id;
   const overlay = document.getElementById('alert-overlay');
   const taskTitleEl = document.getElementById('alert-task-title');
+  const parentEl = document.getElementById('alert-parent');
   const metaEl = document.getElementById('alert-meta');
   const queueInfoEl = document.getElementById('alert-queue-info');
+  const parent = getParentTask(task);
   const project = state.projects.find(p => p.id === task.projectId);
   const dateText = task.date ? formatDate(task.date) : '未设置日期';
   const projectText = project ? `${project.icon} ${project.name}` : '无项目';
 
   taskTitleEl.textContent = task.title;
+  parentEl.textContent = parent ? `父任务：${parent.title}` : '';
+  parentEl.hidden = !parent;
   metaEl.textContent = `${projectText} · ${dateText}`;
 
   if (queueInfoEl) {
@@ -378,7 +401,7 @@ function checkDueReminders() {
   if (dueTasks.length > 0) {
     dueTasks.forEach((task, index) => {
       if (index === 0) {
-        showNotification('Things 3 提醒', `你有 ${dueTasks.length} 个任务到期`);
+        showNotification('Things 3 提醒', getDueTasksNotificationBody(dueTasks));
       }
       showAlert(task);
     });
