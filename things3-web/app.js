@@ -239,7 +239,7 @@ function escapeHtml(text) {
 
 function getReminderLabel(type) {
   const labels = {
-    'at-time': '准时', '5min': '提前5分钟', '15min': '提前15分钟',
+    'at-time': '具体时间', '5min': '提前5分钟', '15min': '提前15分钟',
     '30min': '提前30分钟', '1hour': '提前1小时', '1day': '提前1天'
   };
   return labels[type] || '';
@@ -886,7 +886,7 @@ function openTaskModal(taskId = null, parentId = null) {
   document.getElementById('task-parent-context').hidden = true;
   document.getElementById('task-project').disabled = false;
   document.querySelectorAll('.date-btn').forEach(b => b.classList.remove('selected'));
-  document.getElementById('task-reminder-time').style.display = 'none';
+  document.getElementById('task-reminder-time').style.display = 'block';
 
   if (taskId) {
     const task = state.tasks.find(t => t.id === taskId);
@@ -898,7 +898,7 @@ function openTaskModal(taskId = null, parentId = null) {
       document.getElementById('task-project').value = task.projectId || '';
       document.getElementById('task-tags').value = task.tags || '';
       document.getElementById('task-notes').value = task.notes || '';
-      document.getElementById('task-reminder-type').value = task.reminderType || 'none';
+      document.getElementById('task-reminder-type').value = task.reminderType && task.reminderType !== 'none' ? 'at-time' : 'none';
       document.getElementById('task-reminder-time').value = task.reminderTime || '09:00';
       document.getElementById('task-reminder-time').style.display = task.reminderType && task.reminderType !== 'none' ? 'block' : 'none';
       if (task.date) document.getElementById('task-date').value = task.date;
@@ -1232,10 +1232,6 @@ function setupEventListeners() {
       document.querySelectorAll('.date-btn').forEach(b => b.classList.remove('selected'));
       btn.classList.add('selected');
       document.getElementById('task-date').value = getDateForOption(btn.dataset.date);
-      const rt = document.getElementById('task-reminder-type');
-      const tm = document.getElementById('task-reminder-time');
-      if (btn.dataset.date === 'today') { rt.value = '15min'; tm.style.display = 'block'; }
-      else if (btn.dataset.date) { rt.value = '1day'; tm.style.display = 'block'; }
     });
   });
 
