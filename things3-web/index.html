@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Things 3 Web</title>
-  <link rel="stylesheet" href="style.css?v=20260817-parent-notification">
+  <link rel="stylesheet" href="style.css?v=20260822-recurring-tasks">
 </head>
 <body>
   <div id="app">
@@ -80,6 +80,17 @@
             <input type="time" id="task-reminder-time" class="time-input" value="09:00">
           </div>
         </div>
+        <div class="form-group" id="task-repeat-group">
+          <label for="task-repeat">重复</label>
+          <select id="task-repeat">
+            <option value="none" selected>不重复</option>
+            <option value="daily">每天</option>
+            <option value="weekly">每周</option>
+            <option value="monthly">每月</option>
+            <option value="yearly">每年</option>
+          </select>
+          <p class="form-hint">完成当前任务后，会按计划自动生成下一期。</p>
+        </div>
         <div class="form-group"><label>标签</label><input type="text" id="task-tags" placeholder="用逗号分隔多个标签" autocomplete="off"></div>
         <div class="form-group"><label>备注</label><textarea id="task-notes" placeholder="添加备注..." rows="3"></textarea></div>
         <div class="form-actions"><button type="button" class="btn-cancel" id="btn-cancel">取消</button><button type="submit" class="btn-save">保存</button></div>
@@ -145,6 +156,7 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="app.js?v=20260817-parent-notification"></script>
+  <script src="recurrence.js?v=20260822-recurring-tasks"></script>
+  <script src="app.js?v=20260822-recurring-tasks"></script>
 </body>
 </html>

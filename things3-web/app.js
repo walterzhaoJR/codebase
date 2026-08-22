@@ -1,4 +1,11 @@
 const STORAGE_KEY = 'things3-web-data-v1';
+const {
+  normalizeRepeat,
+  getRepeatLabel,
+  getNextRepeatDate,
+  getCalendarDayDifference,
+  shiftLocalDate
+} = window.ThingsRecurrence;
 
 let state = {
   tasks: [],
@@ -44,6 +51,8 @@ function loadState() {
         delete task.snoozeUntil;
         // 兼容旧版数据：旧任务默认都是顶层任务。
         task.parentId = task.parentId || null;
+        task.repeat = task.parentId ? 'none' : normalizeRepeat(task.repeat);
+        task.repeatAnchorDate = task.repeat !== 'none' ? (task.repeatAnchorDate || task.date || null) : null;
         return task;
       });
       state.projects = data.projects || [];
@@ -79,7 +88,16 @@ function importData(text) {
   try {
     const data = JSON.parse(text);
     if (Array.isArray(data.tasks) && Array.isArray(data.projects)) {
-      state.tasks = data.tasks.map(task => ({ ...task, parentId: task.parentId || null }));
+      state.tasks = data.tasks.map(task => {
+        const parentId = task.parentId || null;
+        const repeat = parentId ? 'none' : normalizeRepeat(task.repeat);
+        return {
+          ...task,
+          parentId,
+          repeat,
+          repeatAnchorDate: repeat !== 'none' ? (task.repeatAnchorDate || task.date || null) : null
+        };
+      });
       state.projects = data.projects;
       normalizeTaskHierarchy();
       saveState();
@@ -129,6 +147,10 @@ function normalizeTaskHierarchy() {
 
 function getChildTasks(taskId) {
   return state.tasks.filter(task => task.parentId === taskId);
+}
+
+function getActiveChildTasks(taskId) {
+  return getChildTasks(taskId).filter(task => !task.completed);
 }
 
 function getDescendantTasks(taskId) {
@@ -381,6 +403,8 @@ function checkDueReminders() {
     if (task.completed) return;
     const hasReminder = (task.reminderType && task.reminderType !== 'none') || task.nextReminderAt;
     if (!hasReminder) return;
+    // 周期任务保留提醒设置供下一期复用；notifiedAt 防止当前一期重复弹窗。
+    if (normalizeRepeat(task.repeat) !== 'none' && task.notifiedAt && !task.nextReminderAt) return;
 
     const snoozeUntil = task.snoozeUntil || 0;
     if (now < snoozeUntil) return;
@@ -388,9 +412,11 @@ function checkDueReminders() {
     const reminderTime = task.nextReminderAt ||
       getReminderDateTime(task.date, task.reminderType, task.reminderTime || '09:00');
     if (reminderTime && reminderTime <= now) {
-      // 只弹一次：弹窗后清空提醒设置，避免过期任务反复触发
-      task.reminderType = 'none';
-      task.reminderTime = null;
+      // 非周期任务沿用一次性提醒；周期任务保留配置，在下一期继续生效。
+      if (normalizeRepeat(task.repeat) === 'none') {
+        task.reminderType = 'none';
+        task.reminderTime = null;
+      }
       task.nextReminderAt = null;
       task.snoozeUntil = null;
       dueTasks.push(task);
@@ -723,6 +749,7 @@ function renderTaskCard(task, options = {}) {
   const project = state.projects.find(p => p.id === task.projectId);
   const parent = task.parentId ? state.tasks.find(t => t.id === task.parentId) : null;
   const children = getChildTasks(task.id);
+  const visibleChildren = options.hideCompletedChildren ? children.filter(child => !child.completed) : children;
   const completedChildren = children.filter(child => child.completed).length;
   const tags = task.tags ? task.tags.split(',').map(t => t.trim()).filter(t => t) : [];
   let dateClass = '';
@@ -731,7 +758,7 @@ function renderTaskCard(task, options = {}) {
     else if (isToday(task.date)) dateClass = 'today';
   }
   const showProject = project && !state.currentProjectId;
-  const hasChildren = children.length > 0;
+  const hasChildren = visibleChildren.length > 0;
   return `
     <div class="task-card ${task.completed ? 'completed' : ''} ${options.isChild ? 'child-task-card' : ''} ${hasChildren ? 'has-subtasks' : ''}" data-task-id="${task.id}" ${hasChildren ? 'title="点击折叠或展开子任务"' : ''}>
       <div class="task-header">
@@ -745,13 +772,14 @@ function renderTaskCard(task, options = {}) {
             ${task.completedAt ? `<span class="task-completed-at">✅ ${formatDate(toDateStringLocal(new Date(task.completedAt)))} ${formatTimeForSnooze(task.completedAt)} 完成</span>` : ''}
             ${task.nextReminderAt ? `<span class="task-reminder">🔔 ${formatReminderDateTime(task.nextReminderAt)} 再次提醒</span>` : ''}
             ${!task.nextReminderAt && task.reminderType && task.reminderType !== 'none' ? `<span class="task-reminder">🔔 ${getReminderLabel(task.reminderType)}</span>` : ''}
+            ${normalizeRepeat(task.repeat) !== 'none' ? `<span class="task-repeat">🔁 ${getRepeatLabel(task.repeat)}</span>` : ''}
             ${task.completed && task.completedAt ? `<span class="task-reminder">✅ 完成于 ${formatReminderDateTime(task.completedAt)}</span>` : ''}
             ${tags.length > 0 ? `<div class="task-tags">${tags.map(tag => `<span class="task-tag">#${escapeHtml(tag)}</span>`).join('')}</div>` : ''}
-            ${children.length > 0 ? `
+            ${visibleChildren.length > 0 ? `
               <button type="button" class="task-subtask-progress" data-action="toggle-subtasks" data-id="${task.id}" aria-expanded="${!state.collapsedTaskIds.has(task.id)}" title="${state.collapsedTaskIds.has(task.id) ? '展开子任务' : '折叠子任务'}">
                 <span class="task-subtask-arrow">${state.collapsedTaskIds.has(task.id) ? '▸' : '▾'}</span>
-                <span>${children.length} 个子任务</span>
-                <span class="task-subtask-completed">· 已完成 ${completedChildren}</span>
+                <span>${options.hideCompletedChildren ? `${visibleChildren.length} 个待办子任务` : `${children.length} 个子任务`}</span>
+                ${options.hideCompletedChildren || completedChildren === 0 ? '' : `<span class="task-subtask-completed">· 已完成 ${completedChildren}</span>`}
               </button>
             ` : ''}
           </div>
@@ -767,23 +795,37 @@ function renderTaskCard(task, options = {}) {
   `;
 }
 
-function renderTaskTrees(tasks) {
-  const taskMap = new Map(tasks.map(task => [task.id, task]));
+function renderTaskTrees(tasks, options = {}) {
+  const allTaskMap = new Map(tasks.map(task => [task.id, task]));
+  const shouldHideTask = task => {
+    if (!options.hideCompletedChildren || !task.parentId) return false;
+    let current = task;
+    const visited = new Set();
+    while (current && !visited.has(current.id)) {
+      if (current.completed) return true;
+      visited.add(current.id);
+      if (!current.parentId) break;
+      current = allTaskMap.get(current.parentId);
+    }
+    return false;
+  };
+  const visibleTasks = tasks.filter(task => !shouldHideTask(task));
+  const taskMap = new Map(visibleTasks.map(task => [task.id, task]));
   const childrenByParent = new Map();
 
-  tasks.forEach(task => {
+  visibleTasks.forEach(task => {
     if (!task.parentId || !taskMap.has(task.parentId)) return;
     if (!childrenByParent.has(task.parentId)) childrenByParent.set(task.parentId, []);
     childrenByParent.get(task.parentId).push(task);
   });
 
-  const roots = tasks.filter(task => !task.parentId || !taskMap.has(task.parentId));
+  const roots = visibleTasks.filter(task => !task.parentId || !taskMap.has(task.parentId));
   const renderNode = (task, depth = 0) => {
     const children = childrenByParent.get(task.id) || [];
     const collapsed = state.collapsedTaskIds.has(task.id);
     return `
       <div class="task-tree-node ${depth > 0 ? 'is-child' : ''}">
-        ${renderTaskCard(task, { isChild: depth > 0, showParent: depth === 0 && !!task.parentId })}
+        ${renderTaskCard(task, { isChild: depth > 0, showParent: depth === 0 && !!task.parentId, hideCompletedChildren: options.hideCompletedChildren })}
         ${children.length && !collapsed ? `<div class="subtasks-list">${children.map(child => renderNode(child, depth + 1)).join('')}</div>` : ''}
       </div>
     `;
@@ -857,7 +899,7 @@ function renderTasks() {
     elements.emptyState.style.display = 'flex';
   } else {
     elements.emptyState.style.display = 'none';
-    elements.tasksContainer.innerHTML = renderTaskTrees(displayTasks) + completedHtml;
+    elements.tasksContainer.innerHTML = renderTaskTrees(displayTasks, { hideCompletedChildren: state.currentView !== 'completed' }) + completedHtml;
   }
   elements.todayCount.textContent = state.tasks.filter(t => isToday(t.date) && !t.completed).length;
   elements.upcomingCount.textContent = state.tasks.filter(t => isUpcoming(t.date) && !t.completed).length;
@@ -887,6 +929,8 @@ function openTaskModal(taskId = null, parentId = null) {
   document.getElementById('task-project').disabled = false;
   document.querySelectorAll('.date-btn').forEach(b => b.classList.remove('selected'));
   document.getElementById('task-reminder-time').style.display = 'block';
+  document.getElementById('task-repeat').value = 'none';
+  document.getElementById('task-repeat-group').hidden = false;
 
   if (taskId) {
     const task = state.tasks.find(t => t.id === taskId);
@@ -901,11 +945,13 @@ function openTaskModal(taskId = null, parentId = null) {
       document.getElementById('task-reminder-type').value = task.reminderType && task.reminderType !== 'none' ? 'at-time' : 'none';
       document.getElementById('task-reminder-time').value = task.reminderTime || '09:00';
       document.getElementById('task-reminder-time').style.display = task.reminderType && task.reminderType !== 'none' ? 'block' : 'none';
+      document.getElementById('task-repeat').value = task.parentId ? 'none' : normalizeRepeat(task.repeat);
       if (task.date) document.getElementById('task-date').value = task.date;
       if (parent) {
         document.getElementById('task-parent-name').textContent = parent.title;
         document.getElementById('task-parent-context').hidden = false;
         document.getElementById('task-project').disabled = true;
+        document.getElementById('task-repeat-group').hidden = true;
       }
       document.getElementById('modal-title').textContent = task.parentId ? '编辑子任务' : '编辑任务';
     }
@@ -917,6 +963,7 @@ function openTaskModal(taskId = null, parentId = null) {
       document.getElementById('task-parent-context').hidden = false;
       document.getElementById('task-project').value = parent.projectId || '';
       document.getElementById('task-project').disabled = true;
+      document.getElementById('task-repeat-group').hidden = true;
       document.getElementById('modal-title').textContent = '新建子任务';
     } else {
       document.getElementById('modal-title').textContent = '新建任务';
@@ -950,7 +997,7 @@ function openTaskDetail(taskId) {
   const project = state.projects.find(p => p.id === task.projectId);
   const parent = task.parentId ? state.tasks.find(t => t.id === task.parentId) : null;
   const children = getChildTasks(task.id);
-  const completedChildren = children.filter(child => child.completed).length;
+  const activeChildren = children.filter(child => !child.completed);
   const tags = task.tags ? task.tags.split(',').map(t => t.trim()).filter(t => t) : [];
   document.getElementById('task-detail-body').innerHTML = `
     <div class="task-detail-section"><div class="task-detail-label">任务</div><div class="task-detail-value" style="font-size:18px;font-weight:500;">${escapeHtml(task.title)}</div></div>
@@ -959,24 +1006,25 @@ function openTaskDetail(taskId) {
     ${task.date ? `<div class="task-detail-section"><div class="task-detail-label">何时</div><div class="task-detail-value">${formatDate(task.date)}</div></div>` : ''}
     ${task.nextReminderAt ? `<div class="task-detail-section"><div class="task-detail-label">再次提醒</div><div class="task-detail-value">${formatReminderDateTime(task.nextReminderAt)}</div></div>` : ''}
     ${task.reminderType && task.reminderType !== 'none' ? `<div class="task-detail-section"><div class="task-detail-label">提醒</div><div class="task-detail-value">${getReminderLabel(task.reminderType)} ${task.reminderTime || ''}</div></div>` : ''}
+    ${normalizeRepeat(task.repeat) !== 'none' ? `<div class="task-detail-section"><div class="task-detail-label">重复</div><div class="task-detail-value">🔁 ${getRepeatLabel(task.repeat)}</div></div>` : ''}
     ${tags.length > 0 ? `<div class="task-detail-section"><div class="task-detail-label">标签</div><div class="task-tags">${tags.map(tag => `<span class="task-tag">#${escapeHtml(tag)}</span>`).join('')}</div></div>` : ''}
     ${task.notes ? `<div class="task-detail-section"><div class="task-detail-label">备注</div><div class="task-detail-value">${escapeHtml(task.notes)}</div></div>` : ''}
     ${!task.parentId ? `
       <div class="task-detail-section task-detail-subtasks-section">
         <div class="task-detail-subtasks-header">
-          <div class="task-detail-label">子任务 ${children.length ? `${completedChildren}/${children.length}` : ''}</div>
+          <div class="task-detail-label">未完成子任务${activeChildren.length ? ` ${activeChildren.length}` : ''}</div>
           <button type="button" class="add-detail-subtask" data-action="add-subtask" data-id="${task.id}">+ 添加子任务</button>
         </div>
-        ${children.length ? `
+        ${activeChildren.length ? `
           <div class="detail-subtasks-list">
-            ${children.map(child => `
-              <div class="detail-subtask-row ${child.completed ? 'completed' : ''}">
-                <button type="button" class="detail-subtask-checkbox ${child.completed ? 'checked' : ''}" data-action="toggle-detail-subtask" data-id="${child.id}" data-parent-id="${task.id}">${child.completed ? '✓' : ''}</button>
+            ${activeChildren.map(child => `
+              <div class="detail-subtask-row">
+                <button type="button" class="detail-subtask-checkbox" data-action="toggle-detail-subtask" data-id="${child.id}" data-parent-id="${task.id}"></button>
                 <button type="button" class="detail-subtask-title" data-action="view-task" data-id="${child.id}">${escapeHtml(child.title)}</button>
               </div>
             `).join('')}
           </div>
-        ` : '<div class="detail-subtasks-empty">还没有子任务</div>'}
+        ` : `<div class="detail-subtasks-empty">${children.length ? '所有子任务均已完成' : '还没有子任务'}</div>`}
       </div>
     ` : ''}
     <div class="task-detail-actions">
@@ -988,6 +1036,45 @@ function openTaskDetail(taskId) {
 }
 
 // ===== Operations =====
+function createNextRecurringOccurrence(task, now) {
+  const repeat = normalizeRepeat(task.repeat);
+  if (repeat === 'none' || task.parentId || !task.date || task.nextOccurrenceId) return null;
+
+  const anchorDate = task.repeatAnchorDate || task.date;
+  const nextDate = getNextRepeatDate(task.date, repeat, anchorDate, new Date(now));
+  if (!nextDate) return null;
+
+  const sourceTasks = [task, ...getDescendantTasks(task.id)];
+  const newIds = new Map(sourceTasks.map(source => [source.id, generateId()]));
+  const dayDelta = getCalendarDayDifference(task.date, nextDate);
+  const seriesId = task.recurrenceSeriesId || task.id;
+  const clones = sourceTasks.map(source => {
+    const isRoot = source.id === task.id;
+    return {
+      ...source,
+      id: newIds.get(source.id),
+      parentId: isRoot ? null : (newIds.get(source.parentId) || null),
+      date: isRoot ? nextDate : shiftLocalDate(source.date, dayDelta),
+      repeat: isRoot ? repeat : 'none',
+      repeatAnchorDate: isRoot ? anchorDate : null,
+      recurrenceSeriesId: isRoot ? seriesId : null,
+      previousOccurrenceId: isRoot ? task.id : null,
+      nextOccurrenceId: null,
+      completed: false,
+      completedAt: null,
+      notifiedAt: null,
+      nextReminderAt: null,
+      snoozeUntil: null,
+      createdAt: now
+    };
+  });
+
+  task.recurrenceSeriesId = seriesId;
+  task.nextOccurrenceId = clones[0].id;
+  state.tasks.push(...clones);
+  return clones[0];
+}
+
 function toggleTask(taskId) {
   const task = state.tasks.find(t => t.id === taskId);
   if (task) {
@@ -1014,6 +1101,7 @@ function toggleTask(taskId) {
       affectedTask.notifiedAt = null;
       affectedTask.nextReminderAt = null;
     });
+    if (completing) createNextRecurringOccurrence(task, now);
     saveState();
     render();
   }
@@ -1024,14 +1112,25 @@ function saveTask(formData) {
   const parentId = formData.parentId || null;
   const parent = parentId ? state.tasks.find(task => task.id === parentId) : null;
   if (parent) formData.projectId = parent.projectId || null;
+  formData.repeat = parentId ? 'none' : normalizeRepeat(formData.repeat);
+  if (formData.repeat !== 'none' && !formData.date) {
+    alert('周期任务需要先设置日期');
+    return;
+  }
   const needsReminder = formData.reminderType && formData.reminderType !== 'none';
   if (needsReminder) requestNotificationPermission();
 
   if (taskId) {
     const idx = state.tasks.findIndex(t => t.id === taskId);
     if (idx !== -1) {
+      const oldTask = state.tasks[idx];
       const oldProjectId = state.tasks[idx].projectId || null;
-      state.tasks[idx] = { ...state.tasks[idx], ...formData, parentId, notifiedAt: null, nextReminderAt: null, completedAt: state.tasks[idx].completed ? state.tasks[idx].completedAt : null };
+      const repeatAnchorDate = formData.repeat === 'none'
+        ? null
+        : (normalizeRepeat(oldTask.repeat) !== formData.repeat || oldTask.date !== formData.date
+          ? formData.date
+          : (oldTask.repeatAnchorDate || formData.date));
+      state.tasks[idx] = { ...oldTask, ...formData, parentId, repeatAnchorDate, notifiedAt: null, nextReminderAt: null, completedAt: oldTask.completed ? oldTask.completedAt : null };
       if (!parentId && oldProjectId !== state.tasks[idx].projectId) {
         getDescendantTasks(taskId).forEach(descendant => {
           descendant.projectId = state.tasks[idx].projectId || null;
@@ -1047,6 +1146,8 @@ function saveTask(formData) {
       date: formData.date || null,
       reminderType: formData.reminderType || 'none',
       reminderTime: formData.reminderTime || '09:00',
+      repeat: formData.repeat,
+      repeatAnchorDate: formData.repeat !== 'none' ? formData.date : null,
       tags: formData.tags || '',
       notes: formData.notes || '',
       completed: false,
@@ -1070,6 +1171,9 @@ function deleteTask(taskId) {
   if (confirm(message)) {
     const deletedIds = new Set([taskId, ...descendants.map(task => task.id)]);
     state.tasks = state.tasks.filter(t => !deletedIds.has(t.id));
+    state.tasks.forEach(task => {
+      if (deletedIds.has(task.nextOccurrenceId)) task.nextOccurrenceId = null;
+    });
     saveState();
     hideModal(elements.taskDetailModal);
     render();
@@ -1222,6 +1326,7 @@ function setupEventListeners() {
       date: document.getElementById('task-date').value || null,
       reminderType: document.getElementById('task-reminder-type').value,
       reminderTime: document.getElementById('task-reminder-time').value,
+      repeat: document.getElementById('task-repeat').value,
       tags: document.getElementById('task-tags').value,
       notes: document.getElementById('task-notes').value
     });
@@ -1302,13 +1407,21 @@ function setupEventListeners() {
     if (checkbox) { e.stopPropagation(); toggleTask(checkbox.dataset.id); return; }
     if (card) {
       const task = state.tasks.find(candidate => candidate.id === card.dataset.taskId);
-      if (task && !task.parentId && getChildTasks(task.id).length > 0) toggleSubtasks(task.id);
+      if (task && !task.parentId && getActiveChildTasks(task.id).length > 0) toggleSubtasks(task.id);
       else openTaskDetail(card.dataset.taskId);
     }
   });
 
   document.getElementById('task-reminder-type').addEventListener('change', e => {
     document.getElementById('task-reminder-time').style.display = e.target.value === 'none' ? 'none' : 'block';
+  });
+
+  document.getElementById('task-repeat').addEventListener('change', e => {
+    const dateInput = document.getElementById('task-date');
+    if (e.target.value !== 'none' && !dateInput.value) {
+      dateInput.value = toDateStringLocal(new Date());
+      document.querySelectorAll('.date-btn').forEach(btn => btn.classList.toggle('selected', btn.dataset.date === 'today'));
+    }
   });
 }
 
