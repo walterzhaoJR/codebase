@@ -3,6 +3,8 @@ const {
   normalizeRepeat,
   getRepeatLabel,
   getNextRepeatDate,
+  getReminderDateTime,
+  getNextRepeatReminder,
   getCalendarDayDifference,
   shiftLocalDate
 } = window.ThingsRecurrence;
@@ -293,10 +295,38 @@ function getReminderTaskLabel(task) {
   return parent ? `${parent.title} › ${task.title}` : task.title;
 }
 
-function getDueTasksNotificationBody(tasks) {
-  if (tasks.length === 1) return getReminderTaskLabel(tasks[0]);
+function getRecurringReminderStatus(task, referenceValue = Date.now()) {
+  if (!task || normalizeRepeat(task.repeat) === 'none') return null;
 
-  const visibleTasks = tasks.slice(0, 3).map(getReminderTaskLabel);
+  const next = getNextRepeatReminder(
+    task.date,
+    task.repeat,
+    task.repeatAnchorDate || task.date,
+    task.reminderType,
+    task.reminderTime || '09:00',
+    new Date(referenceValue)
+  );
+  if (!next) return null;
+
+  return {
+    repeatText: `重复事件 · ${next.repeatLabel}`,
+    nextReminderText: next.reminderAt
+      ? `下次提醒：${formatReminderDateTime(next.reminderAt)}`
+      : `下一周期：${formatDate(next.date)}`
+  };
+}
+
+function getReminderNotificationLabel(task, referenceValue = Date.now()) {
+  const taskLabel = getReminderTaskLabel(task);
+  const recurringStatus = getRecurringReminderStatus(task, referenceValue);
+  if (!recurringStatus) return taskLabel;
+  return `${taskLabel}\n🔁 ${recurringStatus.repeatText} · ${recurringStatus.nextReminderText}`;
+}
+
+function getDueTasksNotificationBody(tasks) {
+  if (tasks.length === 1) return getReminderNotificationLabel(tasks[0]);
+
+  const visibleTasks = tasks.slice(0, 3).map(task => getReminderNotificationLabel(task).replace('\n', ' '));
   const remainingCount = tasks.length - visibleTasks.length;
   if (remainingCount > 0) visibleTasks.push(`还有 ${remainingCount} 个任务…`);
   return `你有 ${tasks.length} 个任务到期\n${visibleTasks.join('\n')}`;
@@ -314,16 +344,22 @@ function showNextAlert() {
   const taskTitleEl = document.getElementById('alert-task-title');
   const parentEl = document.getElementById('alert-parent');
   const metaEl = document.getElementById('alert-meta');
+  const recurrenceEl = document.getElementById('alert-recurrence');
   const queueInfoEl = document.getElementById('alert-queue-info');
   const parent = getParentTask(task);
   const project = state.projects.find(p => p.id === task.projectId);
   const dateText = task.date ? formatDate(task.date) : '未设置日期';
   const projectText = project ? `${project.icon} ${project.name}` : '无项目';
+  const recurringStatus = getRecurringReminderStatus(task);
 
   taskTitleEl.textContent = task.title;
   parentEl.textContent = parent ? `父任务：${parent.title}` : '';
   parentEl.hidden = !parent;
   metaEl.textContent = `${projectText} · ${dateText}`;
+  recurrenceEl.hidden = !recurringStatus;
+  recurrenceEl.innerHTML = recurringStatus
+    ? `<strong>🔁 ${escapeHtml(recurringStatus.repeatText)}</strong><span>${escapeHtml(recurringStatus.nextReminderText)}</span>`
+    : '';
 
   if (queueInfoEl) {
     queueInfoEl.textContent = alertQueue.length > 0 ? `还有 ${alertQueue.length} 个待处理提醒` : '';
@@ -436,15 +472,6 @@ function checkDueReminders() {
     saveState();
     render();
   }
-}
-
-function getReminderDateTime(taskDate, reminderType, reminderTime) {
-  if (reminderType === 'none' || !taskDate) return null;
-  const [y, m, d] = taskDate.split('-').map(Number);
-  const [hours, minutes] = (reminderTime || '09:00').split(':').map(Number);
-  const date = new Date(y, m - 1, d, hours, minutes, 0, 0);
-  const offsets = { 'at-time': 0, '5min': 5 * 60 * 1000, '15min': 15 * 60 * 1000, '30min': 30 * 60 * 1000, '1hour': 60 * 60 * 1000, '1day': 24 * 60 * 60 * 1000 };
-  return date.getTime() - (offsets[reminderType] || 0);
 }
 
 // ===== Rendering =====

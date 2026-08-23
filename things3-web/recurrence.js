@@ -4,6 +4,14 @@
   if (root) root.ThingsRecurrence = api;
 }(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   const REPEAT_TYPES = new Set(['daily', 'weekly', 'monthly', 'yearly']);
+  const REMINDER_OFFSETS = {
+    'at-time': 0,
+    '5min': 5 * 60 * 1000,
+    '15min': 15 * 60 * 1000,
+    '30min': 30 * 60 * 1000,
+    '1hour': 60 * 60 * 1000,
+    '1day': 24 * 60 * 60 * 1000
+  };
 
   function normalizeRepeat(value) {
     return REPEAT_TYPES.has(value) ? value : 'none';
@@ -76,6 +84,33 @@
     return toLocalDateString(candidate);
   }
 
+  function getReminderDateTime(taskDate, reminderType, reminderTime) {
+    const date = parseLocalDate(taskDate);
+    if (!date || !Object.prototype.hasOwnProperty.call(REMINDER_OFFSETS, reminderType)) return null;
+
+    const timeMatch = /^(\d{2}):(\d{2})$/.exec(reminderTime || '09:00');
+    if (!timeMatch) return null;
+    const hours = Number(timeMatch[1]);
+    const minutes = Number(timeMatch[2]);
+    if (hours > 23 || minutes > 59) return null;
+
+    date.setHours(hours, minutes, 0, 0);
+    return date.getTime() - REMINDER_OFFSETS[reminderType];
+  }
+
+  function getNextRepeatReminder(currentDateStr, repeatValue, anchorDateStr, reminderType, reminderTime, referenceValue) {
+    const repeat = normalizeRepeat(repeatValue);
+    const date = getNextRepeatDate(currentDateStr, repeat, anchorDateStr, referenceValue);
+    if (!date) return null;
+
+    return {
+      repeat,
+      repeatLabel: getRepeatLabel(repeat),
+      date,
+      reminderAt: getReminderDateTime(date, reminderType, reminderTime)
+    };
+  }
+
   function getCalendarDayDifference(fromDateStr, toDateStr) {
     const from = parseLocalDate(fromDateStr);
     const to = parseLocalDate(toDateStr);
@@ -96,6 +131,8 @@
     normalizeRepeat,
     getRepeatLabel,
     getNextRepeatDate,
+    getReminderDateTime,
+    getNextRepeatReminder,
     getCalendarDayDifference,
     shiftLocalDate
   };
