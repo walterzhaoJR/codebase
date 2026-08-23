@@ -237,7 +237,11 @@ body { font-family: var(--font-family); font-size: 14px; color: var(--text-prima
 .alert-parent { display: inline-block; max-width: 100%; margin-bottom: 8px; padding: 4px 10px; border-radius: 10px; background: var(--bg-tertiary); color: var(--text-secondary); font-size: 13px; line-height: 1.4; word-break: break-word; }
 .alert-parent[hidden] { display: none; }
 .alert-task-title { font-size: 22px; font-weight: 600; color: var(--text-primary); line-height: 1.4; margin-bottom: 12px; word-break: break-word; }
-.alert-meta { font-size: 14px; color: var(--text-secondary); margin-bottom: 24px; }
+.alert-meta { font-size: 14px; color: var(--text-secondary); margin-bottom: 16px; }
+.alert-recurrence { display: flex; flex-direction: column; gap: 4px; margin: 0 auto 20px; padding: 10px 14px; border-radius: 10px; background: #f4edff; color: var(--accent-purple); font-size: 13px; line-height: 1.45; }
+.alert-recurrence[hidden] { display: none; }
+.alert-recurrence strong { font-size: 14px; }
+.alert-recurrence span { color: var(--text-secondary); }
 .alert-actions { display: flex; gap: 12px; justify-content: center; margin-top: 18px; }
 .alert-btn { padding: 12px 20px; border-radius: 10px; font-size: 15px; font-weight: 500; cursor: pointer; border: none; min-width: 110px; transition: transform 0.1s ease; }
 .alert-btn:active { transform: scale(0.97); }
